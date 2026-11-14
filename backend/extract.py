@@ -81,9 +81,10 @@ def extract_size(title, tags, body):
         if size := _size_from_words(tag):
             return size
     # 2. title: "... 75% ...", "TKL", or model names like "Tofu60", "NK65", "Athena 75"
+    #    (two letters minimum: Corsair's "K65" is a model number, not a size)
     if size := _size_from_words(title):
         return size
-    if m := re.search(r"[A-Za-z]-?(40|60|65|75|80|87|96|98)\b|\b(60|65|75|80)\b", title):
+    if m := re.search(r"[A-Za-z]{2}-?(40|60|65|75|80|87|96|98)\b|\b(60|65|75|80|96|98|99)\b", title):
         return _size_from_percent(m.group(1) or m.group(2))
     # 3. description: only percentages that are clearly about the layout
     if m := re.search(r"(\d{2,3})\s*%\s*(?:layout|keyboard|form|size|compact)", body, re.I):
@@ -161,6 +162,102 @@ def extract_switches(tags, options):
     return switches
 
 
+def extract_connectivity(head, body):
+    """head = title, tags and options (trusted); body = description (fallback)."""
+    for text in (head, body):
+        modes = []
+        if re.search(r"tri-?mode|three[- ]mode", text, re.I):
+            modes += ["Wired", "Bluetooth", "2.4 GHz"]
+        if re.search(r"\bwired\b|usb[- ]?c\b|type-c", text, re.I):
+            modes.append("Wired")
+        if re.search(r"bluetooth|\bBT\s?5", text, re.I):
+            modes.append("Bluetooth")
+        if re.search(r"2\.4\s?g(?:hz)?\b|hyperspeed|lightspeed|slipstream", text, re.I):
+            modes.append("2.4 GHz")
+        if not {"Bluetooth", "2.4 GHz"} & set(modes) and re.search(r"wireless|dual-?mode", text, re.I):
+            modes.append("Wireless")
+        if modes:
+            return " / ".join(m for m in ["Wired", "Bluetooth", "2.4 GHz", "Wireless"] if m in modes)
+    return None
+
+
+def extract_hot_swap(head, body):
+    for text in (head, body):
+        if re.search(r"(?:not|non)[- ]hot-?swap", text, re.I):
+            return False
+        if re.search(r"hot-?swap", text, re.I):
+            return True
+        if text is head and re.search(r"\bsolder", text, re.I):
+            return False  # sold as solder-only, with no hot-swap option
+    return None
+
+
+def extract_assembly(head, has_switches=False, default=None):
+    kinds = []
+    if re.search(r"barebones?", head, re.I):
+        kinds.append("Barebones")
+    if re.search(r"\bkit\b|\bDIY\b", head, re.I):
+        kinds.append("Kit")
+    if re.search(r"fully[- ](?:assembled|built)|pre-?built|ready to use", head, re.I):
+        kinds.append("Fully built")
+    if not kinds and has_switches:
+        kinds.append("Fully built")  # sold with switches installed
+    return " / ".join(kinds) or default
+
+
+_SWITCH_TYPES = [
+    ("Hall effect", r"hall[- ]effect|magnetic\s+(?:\w+\s+)?(?:switch|keyboard|gaming)"),
+    ("Optical", r"\boptical\b|opto-mechanical"),
+    ("Electro-capacitive", r"electro-?capacitive|\btopre\b"),
+    ("Mecha-membrane", r"mecha-membrane"),
+    ("Membrane", r"\bmembrane\b|scissor|rubber dome"),
+    ("Mechanical", r"\bmechanical\b|\bMX\b|gateron|kailh|\bcherry\b|hot-?swap"),
+]
+
+
+def extract_switch_type(head, body):
+    # the short codes "HE" / "EC" are only trusted in the title, tags and options
+    if re.search(r"\bHE\b", head):
+        return "Hall effect"
+    if re.search(r"\bEC\b", head):
+        return "Electro-capacitive"
+    for text in (head, body):
+        for name, pat in _SWITCH_TYPES:
+            if re.search(pat, text, re.I):
+                return name
+    return None
+
+
+_WEIGHT = re.compile(
+    r"\b(?:weight|weighs)\b[^.\d]{0,40}?(\d+(?:\.\d+)?)(?:\s*[-–~]\s*\d+(?:\.\d+)?)?\s*"
+    r"(kg|kilograms?|g|grams?|lbs?|pounds?|oz)\b", re.I)
+_GRAMS_PER = {"k": 1000, "g": 1, "l": 453.6, "p": 453.6, "o": 28.35}
+
+
+def extract_weight(body, variants=()):
+    """Return (grams, source). 'stated' = the listing says it; 'shipping' = the
+    shop's shipping weight, which includes packaging."""
+    for m in _WEIGHT.finditer(body):
+        grams = float(m.group(1)) * _GRAMS_PER[m.group(2)[0].lower()]
+        if 150 <= grams <= 6000:
+            return round(grams), "stated"
+    shipping = [v.get("grams") for v in variants if isinstance(v.get("grams"), (int, float))]
+    shipping = [g for g in shipping if 150 <= g <= 8000]
+    if shipping:
+        return round(min(shipping)), "shipping"
+    return None, None
+
+
+def _reseller_brand(vendor, shop_name):
+    """Resellers put the maker in the vendor field, mixed with internal labels."""
+    vendor = (vendor or "").strip()
+    if shop_name.lower() in vendor.lower():
+        return shop_name  # "NovelKeys, LLC", "NovelKeys Preorder"
+    if not vendor or vendor.startswith("_") or vendor.lower() in ("stocked", "third party", "in stock", "preorder"):
+        return None
+    return vendor
+
+
 def extract_product(product, shop):
     """Map one Shopify product dict onto our schema. Fields may be None."""
     title = (product.get("title") or "").strip()
@@ -180,8 +277,19 @@ def extract_product(product, shop):
         if price > 0:
             prices.append(price)
     images = product.get("images") or []
+    option_text = " | ".join(f"{o.get('name')}: {', '.join(o.get('values', []))}" for o in options)
+    head = f"{title} | {product.get('product_type')} | {', '.join(tags)} | {option_text}"
+    switches = extract_switches(tags, options)
+    weight_g, weight_source = extract_weight(body, variants)
 
     return {
+        "brand": shop.get("brand") or _reseller_brand(product.get("vendor"), shop["name"]),
+        "connectivity": extract_connectivity(head, body),
+        "hot_swappable": extract_hot_swap(head, body),
+        "assembly": extract_assembly(head, has_switches=bool(switches)),
+        "switch_type": extract_switch_type(f"{head} | {', '.join(switches)}", body),
+        "weight_g": weight_g,
+        "weight_source": weight_source,
         "shop": shop["name"],
         "source_url": f"https://{shop['domain']}/products/{product.get('handle')}",
         "keyboard_name": title,
@@ -190,7 +298,7 @@ def extract_product(product, shop):
         "price": min(prices) if prices else None,
         "price_max": max(prices) if prices else None,
         "currency": shop["currency"],
-        "switches": extract_switches(tags, options),
+        "switches": switches,
         "available": any(v.get("available") for v in variants),
         "image_url": images[0].get("src") if images else None,
         "extracted_by": "rules",

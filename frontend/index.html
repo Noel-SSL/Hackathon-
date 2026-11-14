@@ -63,11 +63,16 @@
   <div class="panel filters">
     <label>Search name <input id="q" type="search" placeholder="e.g. Tofu"></label>
     <label>Shop <select id="shop"></select></label>
+    <label>Brand <select id="brand"></select></label>
     <label>Size <select id="size"></select></label>
     <label>Material <select id="material"></select></label>
+    <label>Switch type <select id="switch_type"></select></label>
     <label>Switch <input id="switch" type="search" placeholder="e.g. Brown"></label>
+    <label>Connectivity <select id="connectivity"></select></label>
+    <label>Build <select id="assembly"></select></label>
     <label>Min price <input id="min_price" type="number" min="0"></label>
     <label>Max price <input id="max_price" type="number" min="0"></label>
+    <label class="check"><input type="checkbox" id="hot_swap"> Hot-swappable only</label>
     <label class="check"><input type="checkbox" id="in_stock"> In stock only</label>
     <button id="reset">Reset</button>
   </div>
@@ -77,10 +82,16 @@
       <thead><tr>
         <th></th>
         <th data-sort="keyboard_name">Name</th>
+        <th data-sort="brand">Brand</th>
         <th data-sort="shop">Shop</th>
         <th data-sort="size">Size</th>
         <th data-sort="built_material">Material</th>
+        <th data-sort="switch_type">Switch type</th>
         <th>Switches</th>
+        <th data-sort="connectivity">Connectivity</th>
+        <th>Hot-swap</th>
+        <th data-sort="assembly">Build</th>
+        <th data-sort="weight_g">Weight</th>
         <th data-sort="price">Price</th>
         <th>Stock</th>
       </tr></thead>
@@ -91,8 +102,12 @@
 </main>
 <script>
 const $ = id => document.getElementById(id);
-const FILTERS = ["q", "shop", "size", "material", "switch", "min_price", "max_price"];
-const LABELS = {keyboard_name: "Name", shop: "Shop", size: "Size", built_material: "Material", price: "Price"};
+const FILTERS = ["q", "shop", "brand", "size", "material", "switch_type", "switch", "connectivity",
+                 "assembly", "min_price", "max_price"];
+const CHECKS = ["hot_swap", "in_stock"];
+const LABELS = {keyboard_name: "Name", brand: "Brand", shop: "Shop", size: "Size", built_material: "Material",
+                switch_type: "Switch type", connectivity: "Connectivity", assembly: "Build",
+                weight_g: "Weight", price: "Price"};
 let sort = "keyboard_name", order = "asc", total = 0;
 
 function el(tag, props = {}, ...children) {
@@ -111,6 +126,12 @@ function money(k) {
   return k.price_max > k.price ? `${fmt(k.price)} – ${fmt(k.price_max)}` : fmt(k.price);
 }
 
+function weight(k) {
+  if (k.weight_g == null) return "—";
+  const text = k.weight_g >= 1000 ? `${(k.weight_g / 1000).toFixed(2)} kg` : `${k.weight_g} g`;
+  return k.weight_source === "shipping" ? `${text} (shipping)` : text;
+}
+
 function fillSelect(select, values, withUnknown) {
   const current = select.value;
   select.replaceChildren(el("option", {value: "", textContent: "All"}));
@@ -123,6 +144,10 @@ async function loadFacets() {
   const f = await (await fetch("/api/facets")).json();
   total = f.total;
   fillSelect($("shop"), f.shops);
+  fillSelect($("brand"), f.brands);
+  fillSelect($("switch_type"), f.switch_types, true);
+  fillSelect($("connectivity"), f.connectivity, true);
+  fillSelect($("assembly"), f.assembly, true);
   fillSelect($("size"), f.sizes, true);
   fillSelect($("material"), f.materials, true);
 }
@@ -130,7 +155,7 @@ async function loadFacets() {
 async function load() {
   const params = new URLSearchParams({sort, order});
   for (const id of FILTERS) if ($(id).value.trim()) params.set(id, $(id).value.trim());
-  if ($("in_stock").checked) params.set("in_stock", "1");
+  for (const id of CHECKS) if ($(id).checked) params.set(id, "1");
   const data = await (await fetch("/api/keyboards?" + params)).json();
 
   $("rows").replaceChildren(...data.keyboards.map(k => {
@@ -145,10 +170,16 @@ async function load() {
       el("td", {className: "name"}, link
         ? el("a", {href: link, target: "_blank", rel: "noopener noreferrer", textContent: k.keyboard_name})
         : k.keyboard_name),
+      el("td", {textContent: k.brand || "—"}),
       el("td", {textContent: k.shop}),
       el("td", {textContent: k.size || "—"}),
       el("td", {textContent: k.built_material || "—"}),
+      el("td", {textContent: k.switch_type || "—"}),
       el("td", {}, ...switches),
+      el("td", {textContent: k.connectivity || "—"}),
+      el("td", {textContent: k.hot_swappable == null ? "—" : k.hot_swappable ? "Yes" : "No"}),
+      el("td", {textContent: k.assembly || "—"}),
+      el("td", {className: "price", textContent: weight(k)}),
       el("td", {className: "price", textContent: money(k)}),
       el("td", {className: k.available ? "in" : "out", textContent: k.available ? "In stock" : "Sold out"}),
     );
@@ -193,12 +224,12 @@ $("scrape").addEventListener("click", async () => {
 });
 
 let timer;
-for (const id of [...FILTERS, "in_stock"]) {
+for (const id of [...FILTERS, ...CHECKS]) {
   $(id).addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 200); });
 }
 $("reset").addEventListener("click", () => {
   for (const id of FILTERS) $(id).value = "";
-  $("in_stock").checked = false;
+  for (const id of CHECKS) $(id).checked = false;
   load();
 });
 for (const th of document.querySelectorAll("th[data-sort]")) {

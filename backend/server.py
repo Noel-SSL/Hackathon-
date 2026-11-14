@@ -1,6 +1,6 @@
 """Web server: JSON API over keyboards.db plus the viewer page.
 
-    python3 server.py        # then open http://127.0.0.1:8000
+    python3 backend/server.py        # then open http://127.0.0.1:8000
 """
 import json
 import threading
@@ -12,7 +12,7 @@ import db
 import scraper
 
 HOST, PORT = "127.0.0.1", 8000
-INDEX = Path(__file__).parent / "static" / "index.html"
+INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 
 _scrape_lock = threading.Lock()
 _scrape_state = {"running": False, "log": []}
@@ -63,6 +63,9 @@ class Handler(BaseHTTPRequestHandler):
                     material=first("material"), switch=first("switch"),
                     min_price=_float(params, "min_price"), max_price=_float(params, "max_price"),
                     in_stock=first("in_stock") == "1",
+                    brand=first("brand"), connectivity=first("connectivity"),
+                    assembly=first("assembly"), switch_type=first("switch_type"),
+                    hot_swap=first("hot_swap") == "1",
                     sort=first("sort") or "keyboard_name", order=first("order"),
                 )
             finally:
@@ -74,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
                 facets = db.facets(conn)
             finally:
                 conn.close()
-            facets["all_shops"] = [s["name"] for s in scraper.SHOPS]
+            facets["all_shops"] = scraper.SHOP_NAMES
             self._send(200, facets)
         elif url.path == "/api/scrape":
             self._send(200, _scrape_state)
@@ -91,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         except (ValueError, json.JSONDecodeError):
             return self._send(400, {"error": "invalid JSON"})
-        known = {s["name"] for s in scraper.SHOPS}
+        known = set(scraper.SHOP_NAMES)
         shops = [s for s in body.get("shops") or [] if s in known] or None
         with _scrape_lock:
             if _scrape_state["running"]:
