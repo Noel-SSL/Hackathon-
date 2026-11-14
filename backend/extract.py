@@ -7,7 +7,7 @@ Anything the rules can't find is left as None for the optional LLM pass (llm.py)
 import html
 import re
 
-SIZES = ["40%", "60%", "65%", "75%", "TKL", "96%", "1800", "Full-size", "Alice", "Numpad/Macropad"]
+SIZES = ["40%", "60%", "65%", "75%", "TKL", "96%", "Full-size", "Alice", "Numpad/Macropad"]
 
 # (canonical name, pattern) - order decides how mixed materials are listed
 MATERIALS = [
@@ -63,7 +63,7 @@ def _size_from_words(text):
     if re.search(r"\btkl\b|tenkeyless", t):
         return "TKL"
     if re.search(r"\b1800\b", t):
-        return "1800"
+        return "96%"  # "1800" is the compact full-size layout, the same as 96%
     if re.search(r"\balice\b", t):
         return "Alice"
     if re.search(r"full[- ]?sized?\b", t):
