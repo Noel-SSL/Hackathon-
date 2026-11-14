@@ -8,15 +8,18 @@ Step 2 relies on the schema.org "Product" JSON-LD block most shops embed for
 search engines, so the same parser works across sites. Razer has no such block
 and gets a small parser of its own. To add a brand, add an entry to BRANDS.
 """
+import gzip
 import html
 import json
 import re
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from urllib.parse import quote, urljoin
 
 import extract
+import ratings
 
 USER_AGENT = "Mozilla/5.0 (compatible; keyboard-db/0.1)"
 DELAY_SECONDS = 1.0   # pause between product pages on the same site
@@ -55,9 +58,13 @@ _SWITCH_TYPES = [
 
 def fetch_text(url):
     url = quote(url, safe=":/?&=%#+,;@~")  # some sites publish links with stray non-ASCII characters
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xml"})
+    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xml", "Accept-Encoding": "gzip"}
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+        body = resp.read()
+        if resp.headers.get("Content-Encoding") == "gzip":  # pages are 1-2 MB uncompressed
+            body = gzip.decompress(body)
+        return body.decode("utf-8", errors="replace")
 
 
 def _walk(node):
@@ -124,6 +131,7 @@ def _parse_jsonld(page, url):
         "description": " ".join(filter(None, [str(product.get("description") or ""), _meta(page, "description")])),
         "prices": prices, "available": available, "currency": currency,
         "image": image or _meta(page, "og:image"),
+        "rating": ratings.from_jsonld(product),
     }
 
 
@@ -191,6 +199,14 @@ def extract_switches(text):
     return switches
 
 
+def _rating_fields(rating):
+    """Rating columns for a record, only when the page states a review count."""
+    if not rating or rating[1] is None:
+        return {}
+    return {"rating": rating[0], "review_count": rating[1],
+            "ratings_checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+
+
 def product_links(site, log):
     links = []
     for source in site["sources"]:
@@ -245,6 +261,7 @@ def fetch_keyboards(site, log=print):
             "switch_type": extract.extract_switch_type(f"{name} | {', '.join(switches)}", data["description"]),
             "weight_g": weight_g,
             "weight_source": weight_source,
+            **_rating_fields(data.get("rating")),
             "shop": site["name"],
             "source_url": url,
             "keyboard_name": name,

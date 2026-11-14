@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS keyboards (
     assembly          TEXT,                        -- 'Fully built', 'Barebones', 'Kit'
     switch_type       TEXT,                        -- 'Mechanical', 'Hall effect', ...
     weight_g          REAL,
-    weight_source     TEXT                         -- 'stated' in the listing, or 'shipping' weight
+    weight_source     TEXT,                        -- 'stated' in the listing, or 'shipping' weight
+    rating            REAL,                        -- average stars out of 5
+    review_count      INTEGER,                     -- 0 = no reviews yet, NULL = unknown
+    ratings_checked_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_keyboards_size ON keyboards(size);
 CREATE INDEX IF NOT EXISTS idx_keyboards_price ON keyboards(price);
@@ -46,10 +49,15 @@ COLUMNS = [
 _ADDED_COLUMNS = [
     ("brand", "TEXT"), ("connectivity", "TEXT"), ("hot_swappable", "INTEGER"),
     ("assembly", "TEXT"), ("switch_type", "TEXT"), ("weight_g", "REAL"), ("weight_source", "TEXT"),
+    ("rating", "REAL"), ("review_count", "INTEGER"), ("ratings_checked_at", "TEXT"),
 ]
 
+# Filled by a separate pass (ratings.py) for Shopify shops, so a normal scrape
+# only overwrites them when it brings a rating of its own (brand sites).
+RATING_COLUMNS = ["rating", "review_count", "ratings_checked_at"]
+
 SORTABLE = {"keyboard_name", "shop", "size", "built_material", "price", "scraped_at",
-            "brand", "connectivity", "assembly", "switch_type", "weight_g"}
+            "brand", "connectivity", "assembly", "switch_type", "weight_g", "rating", "review_count"}
 
 
 def connect():
@@ -70,12 +78,17 @@ def get_by_url(conn, url):
 
 def upsert(conn, rec):
     row = dict(rec, switches=json.dumps(rec["switches"]), available=int(rec["available"]))
+    for c in RATING_COLUMNS:
+        row.setdefault(c, None)
     if row["hot_swappable"] is not None:
         row["hot_swappable"] = int(row["hot_swappable"])
+    columns = COLUMNS + RATING_COLUMNS
     updates = ", ".join(f"{c} = excluded.{c}" for c in COLUMNS if c != "source_url")
+    if row["ratings_checked_at"] is not None:  # this scrape brought its own rating
+        updates += ", " + ", ".join(f"{c} = excluded.{c}" for c in RATING_COLUMNS)
     conn.execute(
-        f"INSERT INTO keyboards ({', '.join(COLUMNS)}) "
-        f"VALUES ({', '.join(':' + c for c in COLUMNS)}) "
+        f"INSERT INTO keyboards ({', '.join(columns)}) "
+        f"VALUES ({', '.join(':' + c for c in columns)}) "
         f"ON CONFLICT(source_url) DO UPDATE SET {updates}",
         row,
     )
@@ -92,7 +105,8 @@ def _row_to_dict(row):
 
 def search(conn, q="", shop="", size="", material="", switch="", min_price=None,
            max_price=None, in_stock=False, sort="keyboard_name", order="asc",
-           brand="", connectivity="", assembly="", switch_type="", hot_swap=False):
+           brand="", connectivity="", assembly="", switch_type="", hot_swap=False,
+           min_rating=None):
     where, args = [], []
     if q:
         where.append("keyboard_name LIKE ?")
@@ -121,6 +135,9 @@ def search(conn, q="", shop="", size="", material="", switch="", min_price=None,
         where.append("available = 1")
     if hot_swap:
         where.append("hot_swappable = 1")
+    if min_rating is not None:
+        where.append("rating >= ?")
+        args.append(min_rating)
     for column, value, exact in [("brand", brand, True), ("switch_type", switch_type, True),
                                  ("connectivity", connectivity, False), ("assembly", assembly, False)]:
         if value == "unknown":
