@@ -1,2 +1,33 @@
-data/
+# Python
 __pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Node / Frontend
+node_modules/
+**/node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Data
+data/
+
+# Environment & OS
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
