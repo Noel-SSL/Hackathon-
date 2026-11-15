@@ -5,7 +5,8 @@
 The website itself runs from frontend/ with `npm run dev`, which forwards /api here.
 
 Gemini routes used by the website:
-    POST /api/chat                    shopping assistant      (function calling, chat.py)
+    POST /api/chat                    shopping assistant      (function calling, chat.py;
+                                      "stream": true adds live progress lines)
     POST /api/preferences             a sentence -> filters   (structured output)
     POST /api/vision                  a photo -> filters      (image input)
     POST /api/recommendations         ranking with reasons    (structured output)
@@ -192,23 +193,56 @@ class Handler(BaseHTTPRequestHandler):
 
     def _chat(self):
         """POST {"message": str, "history": [{"role": "user"|"assistant", "content": str}]}
-        -> {"reply": markdown, "keyboards": [cards for the keyboards the reply links to]}."""
+        -> {"reply": markdown, "keyboards": [cards for the keyboards the reply links to]}.
+
+        With "stream": true the answer is newline-delimited JSON instead, sent as it happens:
+            {"type": "status", "text": "Searching the catalog…"}     any number of these
+            {"type": "reply", "reply": ..., "keyboards": [...]}       or, when it fails,
+            {"type": "error", "error": ..., "status": 502}
+        """
         body = self._read_json()
         if body is None:
             return
         message, history = body.get("message"), body.get("history") or []
         if not isinstance(message, str) or not isinstance(history, list):
             return self._send(400, {"error": "message must be a string and history a list"})
+        if body.get("stream") is not True:
+            return self._send(*self._chat_result(message, history))
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()  # no Content-Length: the body ends when the connection closes
+
+        def emit(event):
+            self.wfile.write(json.dumps(event).encode() + b"\n")
+            self.wfile.flush()
+
         try:
-            self._send(200, chat.reply(message, history))
+            status, result = self._chat_result(
+                message, history, lambda text: emit({"type": "status", "text": text}))
+            if status == 200:
+                emit({"type": "reply", **result})
+            else:
+                emit({"type": "error", "status": status, **result})
+        except OSError:
+            pass  # the visitor closed the chat; nobody is left to answer
+
+    def _chat_result(self, message, history, on_status=None):
+        """(HTTP status, JSON body) for one chat message."""
+        try:
+            return 200, chat.reply(message, history, on_status)
         except ValueError as e:
-            self._send(400, {"error": str(e)})
+            return 400, {"error": str(e)}
         except chat.ChatUnavailable as e:
-            self._send(503, {"error": str(e)})
+            return 503, {"error": str(e)}
         except chat.ChatError as e:
-            self._send(502, {"error": str(e)})
+            return 502, {"error": str(e)}
+        except OSError:
+            raise  # on_status could not write to the browser: stop working on the reply
         except Exception as e:  # never drop the connection on a bug; show it in the chat box
-            self._send(500, {"error": f"chatbot failed: {e!r}"})
+            return 500, {"error": f"chatbot failed: {e!r}"}
 
     def _gemini(self, path):
         """The website's other Gemini features. Every answer is checked against the

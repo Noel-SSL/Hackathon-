@@ -30,6 +30,8 @@ MAX_HISTORY_TURNS = 20     # earlier messages sent back to the model
 MAX_TOOL_ROUNDS = 6        # model <-> tool round trips per reply
 MAX_RESULTS = 20           # keyboards per search
 MAX_COMPARE = 6            # keyboards per get_keyboards call
+API_TIMEOUT_SECONDS = 20   # one Gemini request; a slow model is dropped for a fallback
+REPLY_SECONDS = 45         # one whole reply: every tool round, retry and fallback model
 
 SYSTEM = """You are the shopping assistant for a mechanical keyboard comparison website. \
 The site lists keyboards scraped from online shops, and you help visitors find a keyboard, \
@@ -158,10 +160,12 @@ def _load_env():
 
 
 _load_env()
-MODEL = os.environ.get("KEYBOARD_CHAT_MODEL", "gemini-flash-latest")
-# Tried in order when a model is overloaded, rate-limited or missing.
-MODELS = list(dict.fromkeys([MODEL, "gemini-flash-lite-latest", "gemini-3.8-flash",
-                            "gemini-3.5-flash-lite"]))
+# A pinned version, so the chatbot does not change when Google moves the -latest alias.
+MODEL = os.environ.get("KEYBOARD_CHAT_MODEL", "gemini-3.8-flash")
+# Tried in order when a model is overloaded, rate-limited or missing. The lite model comes
+# first because gemini-flash-latest is usually the pinned model under another name.
+MODELS = list(dict.fromkeys([MODEL, "gemini-3.5-flash-lite", "gemini-flash-latest",
+                            "gemini-flash-lite-latest"]))
 
 
 # ------------------------------------------------------------------------ tools
@@ -377,35 +381,56 @@ def _run_tool(conn, name, args):
 
 COOLDOWN_SECONDS = 120
 _resting = {}  # model -> time.monotonic() until which it is skipped (rate-limited or timed out)
+_no_thinking_level = set()  # models that rejected thinkingConfig; they run with their default
+_TOO_SLOW = "The assistant took too long to answer. Try again in a moment."
 
 
-def _post(model, body, key):
+def _post(model, body, key, timeout=API_TIMEOUT_SECONDS):
     request = urllib.request.Request(
         API_URL.format(model=model), data=json.dumps(body).encode(),
         headers={"Content-Type": "application/json", "x-goog-api-key": key})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.loads(response.read())
 
 
-def _generate(contents):
-    """One model turn. Overloaded or rate-limited models are retried, then the fallbacks tried."""
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not key:
-        raise ChatUnavailable("GEMINI_API_KEY is not set (add it to .env)")
-    body = {
+def _body(model, contents):
+    config = {"temperature": 0.3, "maxOutputTokens": 4096}
+    if model not in _no_thinking_level:
+        # Thinking tokens come out of maxOutputTokens and add latency; looking up
+        # keyboards needs little of it.
+        config["thinkingConfig"] = {"thinkingLevel": "low"}
+    return {
         "systemInstruction": {"parts": [{"text": SYSTEM}]},
         "contents": contents,
         "tools": TOOLS,
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
+        "generationConfig": config,
     }
+
+
+def _generate(contents, deadline=None, status=None):
+    """One model turn. Overloaded or rate-limited models are retried, then the fallbacks tried.
+
+    deadline is a time.monotonic() value; no request is started or left running past it.
+    status, if given, is told when a fallback model takes over.
+    """
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        raise ChatUnavailable("GEMINI_API_KEY is not set (add it to .env)")
+    if deadline is None:
+        deadline = time.monotonic() + REPLY_SECONDS
     failure = None
     now = time.monotonic()
     # Skip models that just failed, unless that leaves nothing to try.
     models = [m for m in MODELS if _resting.get(m, 0) <= now] or MODELS
     for model in models:
+        if failure and status:
+            status("Still working, trying another model…")
         for attempt in range(2):
+            remaining = deadline - time.monotonic()
+            if remaining < 1:
+                raise failure if isinstance(failure, ChatError) else ChatError(_TOO_SLOW)
             try:
-                return _post(model, body, key)
+                return _post(model, _body(model, contents), key, min(API_TIMEOUT_SECONDS, remaining))
             except urllib.error.HTTPError as e:
                 try:
                     detail = json.loads(e.read())["error"]["message"]
@@ -413,6 +438,12 @@ def _generate(contents):
                     detail = e.reason
                 if e.code in (401, 403) or (e.code == 400 and "API key" in str(detail)):
                     raise ChatUnavailable(f"Gemini rejected the API key: {detail}") from e
+                if (e.code == 400 and "thinking" in str(detail).lower()
+                        and model not in _no_thinking_level):
+                    # An older model that does not take thinkingLevel: ask again without it.
+                    _no_thinking_level.add(model)
+                    failure = ChatError(f"Gemini rejected the request: {detail}")
+                    continue
                 if e.code == 400:
                     raise ChatError(f"Gemini rejected the request: {detail}") from e
                 if e.code == 429:
@@ -430,7 +461,7 @@ def _generate(contents):
                 _resting[model] = time.monotonic() + COOLDOWN_SECONDS
                 break
             if attempt == 0:
-                time.sleep(1.5)
+                time.sleep(max(0, min(1.5, deadline - time.monotonic())))
     raise failure
 
 
@@ -463,12 +494,35 @@ _CORRECTION = (
 )
 
 
-def reply(message, history=None):
+def _tool_status(name, args):
+    """One line telling the visitor what a tool call is doing."""
+    args = args if isinstance(args, dict) else {}
+    if name == "search_keyboards":
+        words = [str(args[k]) for k in ("brand", "query", "size", "connectivity", "switch_type",
+                                        "switch", "material") if args.get(k)]
+        if _number(args.get("max_price")) is not None:
+            words.append(f"under ${_number(args['max_price']):g}")
+        what = " ".join(words)[:60]
+        return f"Searching the catalog for {what}…" if what else "Searching the catalog…"
+    if name == "get_keyboards":
+        ids = args.get("ids")
+        count = len(ids) if isinstance(ids, list) else 0
+        return f"Comparing {count} keyboards…" if count > 1 else "Loading keyboard details…"
+    if name == "get_catalog_info":
+        return "Checking what the site lists…"
+    return "Working…"
+
+
+def reply(message, history=None, on_status=None):
     """Answer one visitor message.
 
     history is the earlier conversation as [{"role": "user"|"assistant", "content": str}].
+    on_status, if given, is called with a short progress line ("Searching the catalog…")
+    before each slow step, so the page can show what is happening.
     Returns {"reply": markdown text, "keyboards": [cards the reply links to]}.
+    Gives up with ChatError once REPLY_SECONDS have passed.
     """
+    status = on_status or (lambda text: None)
     message = (message or "").strip()
     if not message:
         raise ValueError("message is empty")
@@ -485,10 +539,12 @@ def reply(message, history=None):
     # Links already shown earlier in the conversation may be repeated without a new lookup.
     allowed = {u for turn in contents for u in _LINK.findall(turn["parts"][0]["text"])}
     corrected = False
+    deadline = time.monotonic() + REPLY_SECONDS
     conn = db.connect()
     try:
-        for _ in range(MAX_TOOL_ROUNDS):
-            data = _generate(contents)
+        for step in range(MAX_TOOL_ROUNDS):
+            status("Reading the results…" if step else "Thinking…")
+            data = _generate(contents, deadline, status)
             candidate = (data.get("candidates") or [{}])[0]
             content = candidate.get("content") or {}
             parts = content.get("parts") or []
@@ -502,6 +558,7 @@ def reply(message, history=None):
                 if unknown and not corrected:
                     # The model linked to something no tool returned: make it look it up.
                     corrected = True
+                    status("Double-checking the links…")
                     contents.append({"role": "model", "parts": parts})
                     contents.append({"role": "user", "parts": [{"text": _CORRECTION}]})
                     continue
@@ -513,6 +570,7 @@ def reply(message, history=None):
             contents.append({"role": "model", "parts": parts})
             responses = []
             for call in calls:
+                status(_tool_status(call.get("name"), call.get("args")))
                 result = _run_tool(conn, call.get("name"), call.get("args"))
                 for card in result.get("keyboards", []):
                     seen[card["url"]] = card

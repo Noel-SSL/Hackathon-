@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import chat
 import db
 import gemini_client as client
 import server
@@ -192,6 +193,88 @@ class WebsiteAPITest(unittest.TestCase):
             status, data = self.request("/api/keyboards/2/reviews", {})
         self.assertEqual((status, data["code"]), (404, "reviews_not_found"))
         self.assertIsNone(self.request("/api/keyboards/2")[1]["web_review"])
+
+    # -------------------------------------------------------------- chatbot
+
+    def chat_models(self, *turns):
+        """Patch chat._post to answer with these turns in order; returns the mock."""
+        chat._resting.clear()
+        chat._no_thinking_level.clear()
+        answers = [turn if isinstance(turn, Exception) else
+                   {"candidates": [{"finishReason": "STOP", "content": {"role": "model", "parts": turn}}]}
+                   for turn in turns]
+        env = patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret"})
+        post = patch.object(chat, "_post", side_effect=answers)
+        env.start()
+        self.addCleanup(env.stop)
+        self.addCleanup(post.stop)
+        return post.start()
+
+    SEARCH = [{"functionCall": {"name": "search_keyboards", "args": {"size": "75%", "max_price": 100}}}]
+    ANSWER = [{"text": "Try the [Quiet Board](https://example.com/1) at $80."}]
+
+    def test_chat_answers_from_tool_results(self):
+        post = self.chat_models(self.SEARCH, self.ANSWER)
+        status, data = self.request("/api/chat", {"message": "a 75% under $100?", "history": []})
+        self.assertEqual(status, 200)
+        self.assertIn("Quiet Board", data["reply"])
+        self.assertEqual([card["id"] for card in data["keyboards"]], [1])
+        # Thinking is capped, and no request may outlive the reply's deadline.
+        model, body, _key, timeout = post.call_args.args
+        self.assertEqual(body["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
+        self.assertLessEqual(timeout, chat.API_TIMEOUT_SECONDS)
+
+    def test_chat_stream_reports_progress_then_the_reply(self):
+        self.chat_models(self.SEARCH, self.ANSWER)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
+        self.addCleanup(conn.close)
+        conn.request("POST", "/api/chat", headers={"Content-Type": "application/json"},
+                     body=json.dumps({"message": "a 75% under $100?", "stream": True}))
+        response = conn.getresponse()
+        self.assertEqual(response.status, 200)
+        self.assertIn("ndjson", response.getheader("Content-Type"))
+        events = [json.loads(line) for line in response.read().decode().splitlines()]
+        self.assertEqual([e["text"] for e in events[:-1]],
+                         ["Thinking…", "Searching the catalog for 75% under $100…", "Reading the results…"])
+        self.assertEqual(events[-1]["type"], "reply")
+        self.assertEqual([card["id"] for card in events[-1]["keyboards"]], [1])
+
+    def test_chat_stream_reports_errors_in_the_stream(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
+            self.addCleanup(conn.close)
+            conn.request("POST", "/api/chat", headers={"Content-Type": "application/json"},
+                         body=json.dumps({"message": "hello", "stream": True}))
+            events = [json.loads(line) for line in conn.getresponse().read().decode().splitlines()]
+        self.assertEqual((events[-1]["type"], events[-1]["status"]), ("error", 503))
+
+    def test_chat_gives_up_at_the_deadline(self):
+        from types import SimpleNamespace
+        now = [0.0]
+
+        def slow_model(*_args):  # every request uses up 20 seconds, then times out
+            now[0] += 20
+            raise TimeoutError("timed out")
+
+        post = self.chat_models()
+        post.side_effect = slow_model
+        clock = SimpleNamespace(monotonic=lambda: now[0], sleep=lambda seconds: None)
+        with patch.object(chat, "time", clock):
+            status, data = self.request("/api/chat", {"message": "hello"})
+        self.assertEqual(status, 502)
+        # 45 seconds allow three attempts (20s + 20s + the 5s left); the fourth model is not started.
+        self.assertEqual([call.args[3] for call in post.call_args_list], [20, 20, 5])
+
+    def test_chat_retries_without_thinking_level_when_a_model_rejects_it(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        rejected = HTTPError("https://example.com", 400, "Bad Request", None, BytesIO(
+            json.dumps({"error": {"message": "Thinking level is not supported for this model."}}).encode()))
+        post = self.chat_models(rejected, [{"text": "Hello! Ask me about keyboards."}])
+        status, data = self.request("/api/chat", {"message": "hello"})
+        self.assertEqual((status, data["reply"]), (200, "Hello! Ask me about keyboards."))
+        self.assertNotIn("thinkingConfig", post.call_args.args[1]["generationConfig"])
+
 
 
 class GeminiTransportTest(unittest.TestCase):

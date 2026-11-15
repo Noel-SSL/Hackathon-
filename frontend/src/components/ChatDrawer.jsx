@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 
 import { useCatalog } from "../context/CatalogContext";
-import { money, post } from "../lib/api";
+import { money, postWithStatus } from "../lib/api";
 import Icon from "./Icon";
 import Markdown from "./Markdown";
 import Stars from "./Stars";
@@ -37,6 +37,7 @@ export default function ChatDrawer({ open, onClose }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(""); // what the chatbot is doing right now
   const [error, setError] = useState("");
 
   const scroller = useRef(null);
@@ -44,7 +45,7 @@ export default function ChatDrawer({ open, onClose }) {
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
+  }, [messages, busy, status]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,10 +64,11 @@ export default function ChatDrawer({ open, onClose }) {
     setMessages([...messages, { role: "user", content: question }]);
     setDraft("");
     setError("");
+    setStatus("");
     setBusy(true);
 
     try {
-      const answer = await post("/api/chat", { message: question, history });
+      const answer = await postWithStatus("/api/chat", { message: question, history }, setStatus);
       setMessages((current) => [
         ...current,
         { role: "assistant", content: answer.reply, keyboards: answer.keyboards },
@@ -170,10 +172,11 @@ export default function ChatDrawer({ open, onClose }) {
               ))}
 
               {busy && (
-                <div className={styles.typing} aria-label="Gemini is working">
+                <div className={styles.typing} role="status" aria-label="Gemini is working">
                   <span />
                   <span />
                   <span />
+                  {status && <small className={styles.status}>{status}</small>}
                 </div>
               )}
 

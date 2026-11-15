@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta/models"
-DEFAULT_MODEL = "gemini-flash-latest"  # same default as chat.py; GEMINI_MODEL overrides it
+DEFAULT_MODEL = "gemini-3.8-flash"  # pinned, same default as chat.py; GEMINI_MODEL overrides it
 TIMEOUT_SECONDS = 55
 
 GROUND_RULES = (
