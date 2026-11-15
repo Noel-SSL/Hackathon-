@@ -8,6 +8,7 @@ page. Only what the page itself shows is used, in any of these forms:
 Shops whose reviews load only through JavaScript widgets (Yotpo, Bazaarvoice, ...)
 show no rating in the page, so they are not listed in RATING_SHOPS.
 """
+import html
 import json
 import re
 import time
@@ -15,9 +16,20 @@ import urllib.error
 from datetime import datetime, timedelta, timezone
 
 import brands
+import db
 
 # Shopify shops whose product pages contain a rating in one of the forms above.
 RATING_SHOPS = ["Keychron", "Epomaker", "Glorious", "Divinikey"]
+# ...and of those, the ones whose pages also include written reviews.
+REVIEW_TEXT_SHOPS = ["Keychron", "Epomaker", "Glorious"]
+MAX_REVIEWS = 20  # per keyboard; pages only show the first few anyway
+
+_JUDGE_ME_REVIEW = re.compile(
+    r"""<div class=['"]jdgm-rev\b.*?data-score=['"]([\d.]+)['"].*?"""
+    r"""<b class=['"]jdgm-rev__title['"]>(.*?)</b>\s*<div class=['"]jdgm-rev__body['"]>(.*?)</div>""", re.S)
+_YOTPO_REVIEW = re.compile(
+    r"""<article class="yotpo-review"[^>]*data-rating="([\d.]+)"[^>]*>.*?"""
+    r"""<h4 class="yotpo-review-title">(.*?)</h4>\s*<p class="yotpo-review-body">(.*?)</p>""", re.S)
 REFRESH_AFTER = timedelta(days=7)
 
 _JUDGE_ME = re.compile(
@@ -36,6 +48,47 @@ def _clean(rating, count):
     if count == 0 or (rating is not None and not 0 < rating <= 5):
         return None, count
     return (round(rating, 2) if rating is not None else None), count
+
+
+def _text(fragment):
+    text = html.unescape(re.sub(r"<[^>]+>", " ", fragment or ""))
+    return re.sub(r"\s+", " ", text).strip().strip('"').strip()
+
+
+def _review(rating, title, body):
+    body, title = _text(body), _text(title)
+    if len(body) < 3:
+        return None
+    try:
+        rating = float(rating)
+    except (TypeError, ValueError):
+        rating = None
+    return {"rating": rating, "title": title if title and title != body else None, "body": body[:2000]}
+
+
+def reviews_from_jsonld(product):
+    """Written reviews from a schema.org Product dict (author names are not kept)."""
+    items = product.get("review") if isinstance(product, dict) else None
+    items = items if isinstance(items, list) else [items] if isinstance(items, dict) else []
+    out = []
+    for item in items:
+        if isinstance(item, dict):
+            score = (item.get("reviewRating") or {}).get("ratingValue") if isinstance(item.get("reviewRating"), dict) else None
+            if r := _review(score, item.get("headline") or item.get("name"), item.get("reviewBody")):
+                out.append(r)
+    return out[:MAX_REVIEWS]
+
+
+def reviews_from_page(page):
+    """Written reviews shown on a product page."""
+    product = brands._jsonld_product(page)
+    found = reviews_from_jsonld(product) if product else []
+    if not found:
+        for pattern in (_JUDGE_ME_REVIEW, _YOTPO_REVIEW):
+            found = [r for m in pattern.findall(page) if (r := _review(*m))]
+            if found:
+                break
+    return found[:MAX_REVIEWS]
 
 
 def from_jsonld(product):
@@ -77,10 +130,16 @@ def refresh(conn, shop_names=None, log=print, should_stop=lambda: False):
     if not shops:
         return 0
     cutoff = (datetime.now(timezone.utc) - REFRESH_AFTER).isoformat(timespec="seconds")
+    marks = ",".join("?" * len(shops))
+    text_shops = [s for s in shops if s in REVIEW_TEXT_SHOPS] or [""]
     rows = conn.execute(
-        f"SELECT id, shop, source_url FROM keyboards WHERE shop IN ({','.join('?' * len(shops))}) "
-        "AND (ratings_checked_at IS NULL OR ratings_checked_at < ?) ORDER BY shop, id",
-        [*shops, cutoff]).fetchall()
+        f"SELECT id, shop, source_url FROM keyboards k WHERE shop IN ({marks}) "
+        "AND (ratings_checked_at IS NULL OR ratings_checked_at < ? "
+        # rated before written reviews were collected: fetch once more for the text
+        f" OR (review_count > 0 AND shop IN ({','.join('?' * len(text_shops))}) "
+        "     AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.keyboard_id = k.id))) "
+        "ORDER BY shop, id",
+        [*shops, cutoff, *text_shops]).fetchall()
     log(f"Ratings: {len(rows)} product pages to check")
     done = 0
     for i, row in enumerate(rows, 1):
@@ -89,13 +148,16 @@ def refresh(conn, shop_names=None, log=print, should_stop=lambda: False):
         if i > 1:
             time.sleep(brands.DELAY_SECONDS)
         try:
-            rating, count = from_page(brands.fetch_text(row["source_url"]))
+            page = brands.fetch_text(row["source_url"])
+            rating, count = from_page(page)
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
             log(f"Ratings: skipped {row['source_url']} ({e})")
             continue
         conn.execute(
             "UPDATE keyboards SET rating = ?, review_count = ?, ratings_checked_at = ? WHERE id = ?",
             (rating, count, datetime.now(timezone.utc).isoformat(timespec="seconds"), row["id"]))
+        if count:
+            db.save_reviews(conn, row["id"], reviews_from_page(page))
         done += 1
         if i % 25 == 0:
             conn.commit()

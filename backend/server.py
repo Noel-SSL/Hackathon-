@@ -18,12 +18,13 @@ _scrape_lock = threading.Lock()
 _scrape_state = {"running": False, "log": []}
 
 
-def _run_scrape(shops, use_llm, with_ratings):
+def _run_scrape(shops, use_llm, with_ratings, with_summaries):
     def log(msg):
         _scrape_state["log"] = (_scrape_state["log"] + [msg])[-200:]
 
     try:
-        scraper.scrape(shops, use_llm=use_llm, with_ratings=with_ratings, log=log)
+        scraper.scrape(shops, use_llm=use_llm, with_ratings=with_ratings,
+                       with_summaries=with_summaries, log=log)
     except Exception as e:  # keep the server alive and show the failure in the viewer
         log(f"Scrape failed: {e!r}")
     finally:
@@ -100,7 +101,7 @@ class Handler(BaseHTTPRequestHandler):
             if _scrape_state["running"]:
                 return self._send(409, {"error": "a scrape is already running"})
             _scrape_state.update(running=True, log=[])
-        threading.Thread(target=_run_scrape, args=(shops, bool(body.get("llm")), bool(body.get("ratings"))), daemon=True).start()
+        threading.Thread(target=_run_scrape, args=(shops, bool(body.get("llm")), bool(body.get("ratings")), bool(body.get("summaries"))), daemon=True).start()
         self._send(202, {"started": True})
 
     def log_message(self, fmt, *args):

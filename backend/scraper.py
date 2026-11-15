@@ -4,6 +4,7 @@
     python3 backend/scraper.py --shop KBDfans  # one shop
     python3 backend/scraper.py --llm           # also fill gaps with the LLM (see llm.py)
     python3 backend/scraper.py --ratings       # also fetch customer ratings (slow, see ratings.py)
+    python3 backend/scraper.py --summaries     # also summarise reviews with Gemini (see summarize.py)
 
 The shops in SHOPS are Shopify stores, which publish their catalogue as JSON at
 /products.json; to add another Shopify shop, add a line to SHOPS. Brand sites
@@ -95,7 +96,7 @@ def _shopify_keyboards(shop, log):
             yield extract.extract_product(product, shop), extract.llm_context(product)
 
 
-def scrape(shop_names=None, use_llm=False, with_ratings=False, log=print):
+def scrape(shop_names=None, use_llm=False, with_ratings=False, with_summaries=False, log=print):
     """Scrape the given shops (default: all). Returns the number of keyboards stored."""
     sources = [(s["name"], _shopify_keyboards, s) for s in SHOPS]
     sources += [(b["name"], brands.fetch_keyboards, b) for b in brands.BRANDS]
@@ -113,6 +114,8 @@ def scrape(shop_names=None, use_llm=False, with_ratings=False, log=print):
                     use_llm = _fill_gaps_with_llm(rec, listing_text, db.get_by_url(conn, rec["source_url"]), log)
                 rec["scraped_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 db.upsert(conn, rec)
+                if rec.get("reviews"):
+                    db.save_reviews(conn, db.get_by_url(conn, rec["source_url"])["id"], rec["reviews"])
                 count += 1
                 if count % 25 == 0:
                     conn.commit()
@@ -121,6 +124,9 @@ def scrape(shop_names=None, use_llm=False, with_ratings=False, log=print):
             total += count
         if with_ratings:
             ratings.refresh(conn, shop_names, log)
+        if with_summaries:
+            import summarize
+            summarize.run(conn, shop_names, log)
     finally:
         conn.close()
     log(f"Done: {total} keyboards stored")
@@ -136,5 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--ratings", action="store_true",
                         help="also fetch customer ratings from product pages (one request per keyboard; "
                              "ratings newer than a week are kept)")
+    parser.add_argument("--summaries", action="store_true",
+                        help="summarise written reviews with Gemini (needs GEMINI_API_KEY in .env)")
     args = parser.parse_args()
-    scrape(args.shop, use_llm=args.llm, with_ratings=args.ratings)
+    scrape(args.shop, use_llm=args.llm, with_ratings=args.ratings, with_summaries=args.summaries)

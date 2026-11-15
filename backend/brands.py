@@ -132,6 +132,7 @@ def _parse_jsonld(page, url):
         "prices": prices, "available": available, "currency": currency,
         "image": image or _meta(page, "og:image"),
         "rating": ratings.from_jsonld(product),
+        "reviews": ratings.reviews_from_jsonld(product),
     }
 
 
@@ -262,6 +263,7 @@ def fetch_keyboards(site, log=print):
             "weight_g": weight_g,
             "weight_source": weight_source,
             **_rating_fields(data.get("rating")),
+            "reviews": data.get("reviews") or [],
             "shop": site["name"],
             "source_url": url,
             "keyboard_name": name,

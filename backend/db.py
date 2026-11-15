@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS keyboards (
     review_count      INTEGER,                     -- 0 = no reviews yet, NULL = unknown
     ratings_checked_at TEXT
 );
+-- Written reviews shown on a keyboard's product page (input for review summaries).
+CREATE TABLE IF NOT EXISTS reviews (
+    keyboard_id INTEGER NOT NULL REFERENCES keyboards(id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL,
+    rating      REAL,
+    title       TEXT,
+    body        TEXT NOT NULL,
+    PRIMARY KEY (keyboard_id, position)
+);
 CREATE INDEX IF NOT EXISTS idx_keyboards_size ON keyboards(size);
 CREATE INDEX IF NOT EXISTS idx_keyboards_price ON keyboards(price);
 """
@@ -50,6 +59,8 @@ _ADDED_COLUMNS = [
     ("brand", "TEXT"), ("connectivity", "TEXT"), ("hot_swappable", "INTEGER"),
     ("assembly", "TEXT"), ("switch_type", "TEXT"), ("weight_g", "REAL"), ("weight_source", "TEXT"),
     ("rating", "REAL"), ("review_count", "INTEGER"), ("ratings_checked_at", "TEXT"),
+    ("review_summary", "TEXT"), ("review_pros", "TEXT"), ("review_cons", "TEXT"),
+    ("summary_reviews_hash", "TEXT"), ("summary_generated_at", "TEXT"),
 ]
 
 # Filled by a separate pass (ratings.py) for Shopify shops, so a normal scrape
@@ -70,6 +81,14 @@ def connect():
         if name not in existing:
             conn.execute(f"ALTER TABLE keyboards ADD COLUMN {name} {sql_type}")
     return conn
+
+
+def save_reviews(conn, keyboard_id, reviews):
+    """Replace the stored written reviews for one keyboard."""
+    conn.execute("DELETE FROM reviews WHERE keyboard_id = ?", (keyboard_id,))
+    conn.executemany(
+        "INSERT INTO reviews (keyboard_id, position, rating, title, body) VALUES (?, ?, ?, ?, ?)",
+        [(keyboard_id, i, r.get("rating"), r.get("title"), r["body"]) for i, r in enumerate(reviews)])
 
 
 def get_by_url(conn, url):
@@ -100,6 +119,9 @@ def _row_to_dict(row):
     d["available"] = bool(d["available"])
     if d["hot_swappable"] is not None:
         d["hot_swappable"] = bool(d["hot_swappable"])
+    for key in ("review_pros", "review_cons"):
+        d[key] = json.loads(d[key]) if d[key] else []
+    del d["summary_reviews_hash"]
     return d
 
 
