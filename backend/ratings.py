@@ -165,3 +165,17 @@ def refresh(conn, shop_names=None, log=print, should_stop=lambda: False):
     conn.commit()
     log(f"Ratings: checked {done} keyboards")
     return done
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Collect customer ratings for keyboards already in the catalog.")
+    parser.add_argument("--shop", action="append", choices=RATING_SHOPS,
+                        help="shop to check (repeatable; default: all supported shops)")
+    args = parser.parse_args()
+    connection = db.connect()
+    try:
+        refresh(connection, args.shop)
+    finally:
+        connection.close()

@@ -59,8 +59,21 @@ export default function FilterCard({ filter, selection, onChange, note }) {
               type="button"
               className={`${styles.chip} ${selected ? styles.selected : ""}`}
               aria-pressed={selected}
+              aria-label={
+                filter.id === "rating"
+                  ? `${option.value.min_rating} stars${option.value.min_rating < 5 ? " and up" : ""}`
+                  : undefined
+              }
               onClick={() => onChange(choose(filter, option, selection))}
             >
+              {filter.id === "rating" && (
+                <Star
+                  className={styles.ratingIcon}
+                  size={13}
+                  fill="currentColor"
+                  aria-hidden="true"
+                />
+              )}
               {option.label}
               {option.hint && <small>{option.hint}</small>}
             </button>
