@@ -1,0 +1,181 @@
+<!doctype html>
+<!-- Temporary test page for the chatbot (served at /chat by server.py).
+     Throwaway: the real widget belongs in the React frontend. It only needs
+     POST /api/chat {message, history} -> {reply, keyboards}. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chatbot test page</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1c1e21; --muted: #6b7280;
+    --line: #e2e4e9; --accent: #2f5bea; --accent-text: #ffffff; --bot: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a; --panel: #1f2226; --text: #e8eaed; --muted: #9aa0a8;
+      --line: #32363c; --accent: #6d8dff; --accent-text: #0e1116; --bot: #2a2e34;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .page { max-width: 640px; margin: 0 auto; padding: 48px 16px; }
+  .page h1 { font-size: 22px; margin: 0 0 8px; }
+  .page p { color: var(--muted); margin: 0 0 16px; }
+  .page button { margin: 0 8px 8px 0; }
+
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
+           background: var(--panel); color: var(--text); padding: 6px 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+
+  #launcher { position: fixed; right: 20px; bottom: 20px; width: 56px; height: 56px; padding: 0;
+              border-radius: 50%; border: 0; background: var(--accent); color: var(--accent-text);
+              font-size: 24px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  #box { position: fixed; right: 20px; bottom: 88px; width: 380px; max-width: calc(100vw - 32px);
+         height: 540px; max-height: calc(100vh - 110px); display: flex; flex-direction: column;
+         background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+         box-shadow: 0 10px 32px rgba(0,0,0,.25); overflow: hidden; }
+  #box[hidden] { display: none; }
+  #box header { display: flex; align-items: center; justify-content: space-between;
+                padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  #box header button { padding: 2px 8px; font-size: 13px; }
+  #log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 92%; padding: 8px 12px; border-radius: 12px; overflow-wrap: anywhere; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: var(--accent-text); white-space: pre-wrap; }
+  .msg.bot { align-self: flex-start; background: var(--bot); }
+  .msg.error { align-self: flex-start; border: 1px solid #d9534f; color: #d9534f; }
+  .msg.wait { align-self: flex-start; color: var(--muted); font-style: italic; }
+  .msg p { margin: 0 0 8px; } .msg p:last-child { margin-bottom: 0; }
+  .msg ul { margin: 0 0 8px; padding-left: 20px; }
+  .msg a { color: var(--accent); }
+  .msg .scroll { overflow-x: auto; margin-bottom: 8px; }
+  .msg table { border-collapse: collapse; font-size: 13px; }
+  .msg th, .msg td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+  #form { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+  #input { flex: 1; resize: none; font: inherit; padding: 8px 10px; border-radius: 8px;
+           border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  #send { background: var(--accent); color: var(--accent-text); border: 0; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>Chatbot test page</h1>
+    <p>Temporary page for trying the keyboard assistant. The chat box is in the bottom-right corner. Try one of these:</p>
+    <div id="samples"></div>
+  </div>
+
+  <button id="launcher" aria-label="Open chat" title="Chat">💬</button>
+  <section id="box" aria-label="Keyboard assistant">
+    <header><span>Keyboard assistant</span>
+      <span><button id="clear" type="button">Clear</button> <button id="close" type="button" aria-label="Close chat">✕</button></span>
+    </header>
+    <div id="log" aria-live="polite"></div>
+    <form id="form">
+      <textarea id="input" rows="1" maxlength="2000" placeholder="Ask about keyboards…"></textarea>
+      <button id="send" type="submit">Send</button>
+    </form>
+  </section>
+
+<script>
+const SAMPLES = [
+  "Wireless 75% keyboard under $100, hot-swappable",
+  "Compare the Keychron Q1 Max and the Keychron K2 HE",
+  "What shops does this site cover?",
+  "Best rated hall effect keyboard?",
+];
+const GREETING = "Hi! I can help you find a keyboard, compare keyboards, or answer questions about what this site lists.";
+
+const $ = (id) => document.getElementById(id);
+const log = $("log"), input = $("input"), send = $("send"), box = $("box");
+let history = [];   // [{role: "user" | "assistant", content}] sent back with every request
+let busy = false;
+
+// ---- tiny markdown renderer: escapes everything first, then adds a safe subset.
+const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function inline(text) {
+  return esc(text)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+const cells = (line) => line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+function markdown(text) {
+  const lines = text.split("\n"), out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*\|/.test(line) && /^\s*\|[\s:|-]+\|?\s*$/.test(lines[i + 1] || "")) {
+      let html = "<div class='scroll'><table><tr>" + cells(line).map((c) => `<th>${inline(c)}</th>`).join("") + "</tr>";
+      for (i += 2; i < lines.length && /^\s*\|/.test(lines[i]); i++)
+        html += "<tr>" + cells(lines[i]).map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>";
+      out.push(html + "</table></div>");
+    } else if (/^\s*([*-]|\d+\.)\s+/.test(line)) {
+      let html = "<ul>";
+      for (; i < lines.length && /^\s*([*-]|\d+\.)\s+/.test(lines[i]); i++)
+        html += `<li>${inline(lines[i].replace(/^\s*([*-]|\d+\.)\s+/, ""))}</li>`;
+      out.push(html + "</ul>");
+    } else if (line.trim()) {
+      const para = [];
+      for (; i < lines.length && lines[i].trim() && !/^\s*(\||[*-]\s|\d+\.\s)/.test(lines[i]); i++)
+        para.push(inline(lines[i].replace(/^#+\s*/, "")));
+      if (!para.length) para.push(inline(lines[i++]));
+      out.push(`<p>${para.join("<br>")}</p>`);
+    } else i++;
+  }
+  return out.join("");
+}
+
+function add(kind, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + kind;
+  if (kind === "bot") el.innerHTML = markdown(text); else el.textContent = text;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+async function ask(message) {
+  message = message.trim();
+  if (!message || busy) return;
+  busy = true; send.disabled = true; box.hidden = false;
+  add("user", message);
+  const wait = add("wait", "Looking through the catalog…");
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, history }),
+    });
+    const data = await res.json();
+    wait.remove();
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    add("bot", data.reply);
+    history.push({ role: "user", content: message }, { role: "assistant", content: data.reply });
+  } catch (err) {
+    wait.remove();
+    add("error", err.message || "Something went wrong.");
+  } finally {
+    busy = false; send.disabled = false; input.focus();
+  }
+}
+
+function reset() { history = []; log.textContent = ""; add("bot", GREETING); }
+
+$("form").addEventListener("submit", (e) => { e.preventDefault(); const text = input.value; input.value = ""; ask(text); });
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
+});
+$("launcher").addEventListener("click", () => { box.hidden = !box.hidden; if (!box.hidden) input.focus(); });
+$("close").addEventListener("click", () => { box.hidden = true; });
+$("clear").addEventListener("click", reset);
+for (const sample of SAMPLES) {
+  const b = document.createElement("button");
+  b.textContent = sample;
+  b.addEventListener("click", () => ask(sample));
+  $("samples").appendChild(b);
+}
+reset();
+</script>
+</body>
+</html>
