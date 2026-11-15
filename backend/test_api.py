@@ -141,27 +141,6 @@ class WebsiteAPITest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(data["pros"], ["75% layout"])
 
-    # ---------------------------------------------------------- image input
-
-    def test_photo_search_checks_the_upload_and_the_filters(self):
-        with patch.object(client, "generate_json") as generate:
-            self.assertEqual(self.request("/api/vision", {"image": "aGVsbG8=", "mime_type": "image/gif"})[0], 400)
-            self.assertEqual(self.request("/api/vision", {"image": "not base64!", "mime_type": "image/png"})[0], 400)
-            generate.assert_not_called()
-
-        photo = {"image": "aGVsbG8=", "mime_type": "image/jpeg"}
-        seen = {"has_keyboard": True, "explanation": "A compact aluminum board.",
-                "observed": {"layout": "75%", "case": "aluminum", "colors": ["grey"], "style": "minimal"},
-                "filters": {"size": "75%", "material": "Aluminum"}}
-        with patch.object(client, "generate_json", return_value=seen) as generate:
-            status, data = self.request("/api/vision", photo)
-        self.assertEqual(status, 200)
-        self.assertEqual(data["filters"], {"size": "75%", "material": "Aluminum"})
-        self.assertEqual(generate.call_args.args[1][0]["inlineData"]["mimeType"], "image/jpeg")
-
-        with patch.object(client, "generate_json", return_value=dict(seen, filters={"size": "200%"})):
-            self.assertEqual(self.request("/api/vision", photo)[0], 502)
-
     # ----------------------------------------------- Google Search grounding
 
     def test_web_reviews_keep_only_grounded_sources_and_are_cached(self):

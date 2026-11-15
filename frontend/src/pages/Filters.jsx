@@ -111,26 +111,33 @@ export default function Filters() {
 
         <p className={styles.summary} aria-live="polite">
           {picked === 0 ? "nothing picked yet" : `${picked} of ${filters.length} picked`}
-          {picked > 0 && (
-            <button type="button" className="text-link" onClick={() => setSelection({})}>
-              clear
-            </button>
-          )}
         </p>
 
-        <button
-          type="button"
-          className="button"
-          onClick={showResults}
-          disabled={!facets || Boolean(error) || count === 0}
-        >
-          {count === null
-            ? "show keyboards"
-            : count === 0
-              ? "no matches"
-              : `show ${count} keyboards`}
-          <Icon name="arrow" />
-        </button>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className="button"
+            onClick={showResults}
+            disabled={!facets || Boolean(error) || count === 0}
+          >
+            {count === null
+              ? "show keyboards"
+              : count === 0
+                ? "no matches"
+                : `show ${count} keyboards`}
+            <Icon name="arrow" />
+          </button>
+
+          <button
+            type="button"
+            className={`button ghost ${styles.clear}`}
+            onClick={() => setSelection({})}
+            disabled={picked === 0}
+          >
+            <Icon name="close" size={16} />
+            clear
+          </button>
+        </div>
       </footer>
     </main>
   );
