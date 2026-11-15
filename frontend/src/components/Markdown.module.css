@@ -1,0 +1,54 @@
+.markdown {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.markdown a {
+  color: var(--midnight);
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.markdown strong {
+  color: var(--midnight);
+  font-weight: 500;
+}
+
+.markdown ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.tableScroll {
+  overflow-x: auto;
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.markdown th,
+.markdown td {
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* Prices and ratings stay on one line; the name column takes the wrapping. */
+.markdown th:not(:first-child),
+.markdown td:not(:first-child) {
+  white-space: nowrap;
+}

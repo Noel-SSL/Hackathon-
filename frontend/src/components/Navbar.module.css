@@ -1,0 +1,99 @@
+.nav {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--nav-height);
+  padding-inline: clamp(20px, 4vw, 48px);
+  background: rgb(246 244 239 / 82%);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+  transition:
+    background 0.5s var(--ease-out),
+    border-color 0.5s var(--ease-out);
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 3vw, 36px);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 400;
+  text-transform: lowercase;
+}
+
+.links a {
+  position: relative;
+  padding-block: 6px;
+}
+
+.links a::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s var(--ease-out);
+}
+
+.links a:hover::after {
+  transform: scaleX(1);
+}
+
+.ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding-inline: 16px;
+  border-radius: 999px;
+  background: var(--midnight);
+  color: #fff;
+  text-transform: lowercase;
+  transition:
+    background 0.3s,
+    color 0.3s,
+    transform 0.3s var(--ease-out);
+}
+
+.ask:hover {
+  transform: translateY(-1px);
+}
+
+.ask svg {
+  color: var(--accent);
+  fill: currentColor;
+}
+
+/* On the home page the bar floats over the split hero:
+   the logo sits on the light half, the links on the midnight half. */
+.overHero {
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
+}
+
+.overHero .links {
+  color: #fff;
+}
+
+.overHero .ask {
+  background: #fff;
+  color: var(--midnight);
+}
+
+@media (max-width: 760px) {
+  .links a {
+    display: none;
+  }
+
+  .overHero .ask {
+    background: var(--midnight);
+    color: #fff;
+  }
+}

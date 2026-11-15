@@ -1,0 +1,142 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  margin-top: 10px;
+  font-size: clamp(44px, 6vw, 76px);
+  font-weight: 300;
+}
+
+.lead {
+  margin-top: 12px;
+  color: var(--ink-muted);
+  font-size: 18px;
+}
+
+/* ---------- step indicator ---------- */
+
+.progress {
+  display: flex;
+  gap: 10px;
+}
+
+.progress button {
+  position: relative;
+  width: 132px;
+  padding-top: 14px;
+  color: var(--ink-faint);
+  font-size: 14px;
+  text-align: left;
+  text-transform: lowercase;
+  transition: color 0.4s;
+}
+
+.progress button::before,
+.progress button::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.progress button::after {
+  background: var(--midnight);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.9s var(--ease-in-out);
+}
+
+.progress .reached {
+  color: var(--midnight);
+}
+
+.progress .reached::after {
+  transform: scaleX(1);
+}
+
+/* ---------- sliding pages ---------- */
+
+.viewport {
+  /* Wider than the page by its side margins, so card shadows and the hover
+     lift have room before overflow: hidden cuts them off. */
+  margin: 16px -24px 0;
+  padding-block: 12px 40px;
+  overflow: hidden;
+}
+
+.track {
+  display: flex;
+  will-change: transform;
+}
+
+.pageOfCards {
+  flex: 0 0 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+  gap: 24px;
+  padding-inline: 24px;
+}
+
+.placeholder {
+  height: 420px;
+  border-radius: var(--radius-lg);
+}
+
+/* ---------- bottom bar ---------- */
+
+.footer {
+  position: sticky;
+  bottom: 20px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 12px 12px 24px;
+  border-radius: var(--radius-md);
+  background: rgb(255 255 255 / 86%);
+  box-shadow: var(--shadow-lift);
+  backdrop-filter: blur(12px);
+}
+
+.footer > :first-child {
+  justify-self: start;
+}
+
+.footer > :last-child {
+  justify-self: end;
+}
+
+.summary {
+  display: flex;
+  gap: 12px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pageOfCards {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    grid-template-columns: 1fr auto;
+  }
+
+  .summary {
+    display: none;
+  }
+}

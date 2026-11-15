@@ -1,0 +1,34 @@
+.stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.row {
+  position: relative;
+  display: inline-block;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.empty {
+  color: var(--line-strong);
+}
+
+.filled {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.number {
+  color: var(--midnight);
+  font-weight: 500;
+}
+
+.count {
+  color: var(--ink-muted);
+}

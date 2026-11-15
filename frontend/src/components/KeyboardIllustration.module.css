@@ -1,0 +1,102 @@
+.stage {
+  width: 100%;
+  perspective: 1400px;
+}
+
+.board {
+  width: 100%;
+  overflow: visible;
+  transform: rotateX(52deg) rotateZ(-24deg) scale(0.92);
+  transform-origin: center;
+  transition: transform 1.1s var(--ease-out);
+  will-change: transform;
+}
+
+/* While its half of the home page is hovered, the board tilts toward the viewer. */
+.lifted .board {
+  transform: rotateX(40deg) rotateZ(-16deg) scale(1);
+}
+
+.case {
+  transition: fill 0.6s;
+}
+
+.key {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: settle 0.9s var(--ease-out) both;
+  animation-delay: calc(var(--order) * 28ms + 200ms);
+}
+
+.lifted .key {
+  animation: press 2.8s var(--ease-in-out) infinite;
+  animation-delay: calc(var(--order) * 90ms);
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes press {
+  0%,
+  12%,
+  100% {
+    transform: translateY(0);
+  }
+  6% {
+    transform: translateY(3px);
+  }
+}
+
+/* ---------- office: warm white board on paper ---------- */
+
+.office .board {
+  filter: drop-shadow(26px 40px 34px rgb(20 33 61 / 18%));
+}
+
+.office .case {
+  fill: #dedad0;
+}
+
+.office .plate {
+  fill: #cfcabd;
+}
+
+.office .key {
+  fill: #fbfaf7;
+}
+
+.office .accent {
+  fill: var(--accent);
+}
+
+/* ---------- gaming: dark board with lit keys ---------- */
+
+.gaming .board {
+  filter: drop-shadow(26px 40px 34px rgb(0 0 0 / 45%));
+}
+
+.gaming .case {
+  fill: #0a1223;
+}
+
+.gaming .plate {
+  fill: #f0894a;
+  opacity: 0.22;
+}
+
+.gaming .key {
+  fill: #3d5183;
+}
+
+.gaming .accent {
+  fill: var(--accent);
+  filter: drop-shadow(0 0 6px rgb(240 137 74 / 80%));
+}

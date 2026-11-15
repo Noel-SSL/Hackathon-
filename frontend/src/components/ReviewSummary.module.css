@@ -1,0 +1,162 @@
+.reviews {
+  margin-top: 96px;
+  padding-top: 56px;
+  border-top: 1px solid var(--line);
+}
+
+.reviews header h2 {
+  margin-top: 10px;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 300;
+}
+
+.method {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.method svg {
+  flex: none;
+  color: var(--accent);
+  fill: currentColor;
+}
+
+.quiet {
+  margin-top: 28px;
+  color: var(--ink-muted);
+}
+
+.loading {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+  margin-top: 28px;
+  color: var(--ink-muted);
+}
+
+.loading div {
+  height: 16px;
+}
+
+.loading div:last-child {
+  width: 60%;
+}
+
+/* ---------- loaded ---------- */
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 40px clamp(32px, 5vw, 72px);
+  margin-top: 36px;
+}
+
+.summary {
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.rating {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.rating > span:last-child {
+  color: var(--ink-muted);
+}
+
+.points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.points > div {
+  padding: 22px 24px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.points h3,
+.sources h3 {
+  color: var(--ink-muted);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.points ul {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources {
+  grid-column: 1 / -1;
+}
+
+.sources ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources li a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 6px 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  font-size: 14px;
+  white-space: nowrap;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+
+.sources li a:hover {
+  background: var(--midnight);
+  color: #fff;
+}
+
+.queries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 16px;
+  color: var(--ink-faint);
+  font-size: 13px;
+}
+
+.queries a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.queries a:hover {
+  color: var(--midnight);
+}
+
+@media (max-width: 860px) {
+  .body,
+  .points {
+    grid-template-columns: 1fr;
+  }
+}

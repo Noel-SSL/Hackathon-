@@ -1,0 +1,63 @@
+.ranker {
+  display: grid;
+  gap: 12px;
+}
+
+.ranker form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 18px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.ranker form:focus-within {
+  box-shadow:
+    0 0 0 1.5px var(--midnight),
+    var(--shadow-soft);
+}
+
+.spark {
+  color: var(--accent);
+}
+
+.spark svg {
+  fill: currentColor;
+}
+
+.ranker input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+}
+
+.ranker input::placeholder {
+  color: var(--ink-faint);
+}
+
+.summary {
+  overflow: hidden;
+  padding-inline: 18px;
+  color: var(--ink);
+}
+
+.off {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .ranker form {
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .ranker input {
+    flex-basis: calc(100% - 40px);
+  }
+}
