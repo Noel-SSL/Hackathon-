@@ -77,26 +77,123 @@
   fill: var(--accent);
 }
 
-/* ---------- gaming: dark board with lit keys ---------- */
+/* ---------- gaming: tall pudding keycaps over cycling RGB ---------- */
 
+/* Every lit part is coloured from one rainbow; rotating the hue of the whole
+   board makes that rainbow travel. The dark parts are neutral, so they hold. */
 .gaming .board {
-  filter: drop-shadow(26px 40px 34px rgb(0 0 0 / 45%));
+  filter: drop-shadow(26px 40px 34px rgb(0 0 0 / 45%)) hue-rotate(0deg);
+  animation: rgb-cycle 7s linear infinite;
+}
+
+.lifted.gaming .board {
+  animation-duration: 3.5s;
+}
+
+@keyframes rgb-cycle {
+  to {
+    filter: drop-shadow(26px 40px 34px rgb(0 0 0 / 45%)) hue-rotate(-360deg);
+  }
+}
+
+.gaming .underglow {
+  opacity: 0.55;
+  transition: opacity 0.6s;
+}
+
+.lifted.gaming .underglow {
+  opacity: 0.85;
+}
+
+.gaming .caseSide {
+  fill: #08090c;
 }
 
 .gaming .case {
-  fill: #0a1223;
+  fill: #16181d;
+}
+
+.gaming .rim {
+  fill: none;
+  stroke-width: 3;
 }
 
 .gaming .plate {
-  fill: #f0894a;
-  opacity: 0.22;
+  opacity: 0.3;
 }
 
-.gaming .key {
-  fill: #3d5183;
+.gaming .backlight {
+  fill: hsl(var(--hue) 100% 58%);
 }
 
-.gaming .accent {
-  fill: var(--accent);
-  filter: drop-shadow(0 0 6px rgb(240 137 74 / 80%));
+/* The settle and press animations move the cap, not the whole key, so a
+   pressed key sinks into its own walls. */
+.gaming .key,
+.lifted.gaming .key {
+  animation: fade-in 0.9s var(--ease-out) both;
+  animation-delay: calc(var(--order) * 28ms + 200ms);
+}
+
+.lifted.gaming .cap {
+  animation: press-deep 2.8s var(--ease-in-out) infinite;
+  animation-delay: calc(var(--order) * 90ms);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes press-deep {
+  0%,
+  12%,
+  100% {
+    transform: translate(0, 0);
+  }
+  6% {
+    transform: translate(-2.5px, 7px);
+  }
+}
+
+.gaming .wall0 {
+  fill: hsl(var(--hue) 95% 30%);
+}
+
+.gaming .wall1 {
+  fill: hsl(var(--hue) 100% 42%);
+}
+
+.gaming .wall2 {
+  fill: hsl(var(--hue) 100% 56%);
+}
+
+.gaming .capTop {
+  fill: #1b1d24;
+  stroke: hsl(var(--hue) 100% 70%);
+  stroke-width: 0.8;
+}
+
+.gaming .legend {
+  fill: hsl(var(--hue) 100% 72%);
+}
+
+/* WASD: fully lit caps */
+.gaming .accent .capTop {
+  fill: hsl(var(--hue) 100% 78%);
+  stroke: #fff;
+}
+
+.gaming .accent .legend {
+  fill: #16181d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gaming .board,
+  .lifted.gaming .cap {
+    animation: none;
+  }
 }

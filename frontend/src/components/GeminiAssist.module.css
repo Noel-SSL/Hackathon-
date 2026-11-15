@@ -41,31 +41,6 @@
   color: var(--ink-faint);
 }
 
-.photo {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding-inline: 14px;
-  border-radius: var(--radius-sm);
-  color: var(--ink-muted);
-  font-size: 14px;
-  text-transform: lowercase;
-  white-space: nowrap;
-  transition:
-    background 0.3s,
-    color 0.3s;
-}
-
-.photo:hover:not(:disabled) {
-  background: var(--paper);
-  color: var(--midnight);
-}
-
-.photo:disabled {
-  opacity: 0.5;
-}
-
 .hint {
   color: var(--ink-muted);
   font-size: 14px;
@@ -81,20 +56,6 @@
   font-size: 15px;
 }
 
-.result img {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-}
-
-.observed {
-  margin-bottom: 4px;
-  color: var(--ink-muted);
-  font-size: 13px;
-  text-transform: lowercase;
-}
-
 @media (max-width: 640px) {
   .bar {
     flex-wrap: wrap;
@@ -103,9 +64,5 @@
 
   .bar input {
     flex-basis: calc(100% - 40px);
-  }
-
-  .photo span {
-    display: none;
   }
 }

@@ -69,7 +69,7 @@ def as_part(data):
 # ---------------------------------------------------------------------------
 
 def filter_schema():
-    """Schema for a `filters` object. Shared by text, photo and chat features."""
+    """Schema for a `filters` object. Shared by the text and chat features."""
     properties = {}
     for field, source in FACET_FILTERS.items():
         # A full enum of every switch name can exceed Gemini's schema limits,

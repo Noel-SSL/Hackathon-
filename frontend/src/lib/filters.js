@@ -94,6 +94,8 @@ export function buildFilters(facets) {
       title: "brand",
       blurb: "who makes or sells it",
       params: ["brand", "shop"],
+      // The catalog has far too many brands to lay out as chips.
+      dropdown: true,
       options: brandOptions(facets),
     },
     {

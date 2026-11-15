@@ -3,13 +3,13 @@
 Find a keyboard for work or play. Built for DevFest at UCSC (Google Developer Group),
 for the **Best Integration of Gemini / Google API** track.
 
-Pick office or gaming, choose a few filters (or let Gemini choose them from a sentence
-or a photo), browse real listings scraped from keyboard shops, ask the chatbot anything
+Pick office or gaming, choose a few filters (or let Gemini choose them from a sentence),
+browse real listings scraped from keyboard shops, ask the chatbot anything
 about them, and read what buyers say about each one.
 
 ## How Gemini is used
 
-Six features depend on Gemini, and between them they use five different parts of the
+Five features depend on Gemini, and between them they use three different parts of the
 API. All calls are made by the Python backend; the key never reaches the browser.
 
 | Feature | Where in the app | Gemini capability | Code |
@@ -18,7 +18,6 @@ API. All calls are made by the Python backend; the key never reaches the browser
 | What buyers say | Keyboard page | Structured output over the shop's written reviews | `backend/summarize.py` |
 | What buyers say (no shop reviews) | Keyboard page | Grounding with Google Search | `backend/gemini_reviews.py` |
 | Describe it | Finder, text bar | Structured output (JSON schema) | `backend/gemini_service.py` |
-| Match a photo | Finder, camera button | Image input with structured output | `backend/gemini_vision.py` |
 | Rank / "is this right for me?" | Results and keyboard pages | Structured output | `backend/gemini_service.py` |
 
 Things worth pointing out in a demo:
@@ -129,7 +128,7 @@ All optional except the key, all set in `.env` (real environment variables win):
 | Variable | Default | Used by |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | none | Every Gemini feature |
-| `GEMINI_MODEL` | `gemini-3.8-flash` (`gemini-3.5-flash-lite` in `summarize.py`) | Filters, photo match, ranking, insights, web reviews, review summaries |
+| `GEMINI_MODEL` | `gemini-3.8-flash` (`gemini-3.5-flash-lite` in `summarize.py`) | Filters, ranking, insights, web reviews, review summaries |
 | `KEYBOARD_CHAT_MODEL` | `gemini-3.8-flash` | The chatbot |
 | `KEYBOARD_LLM_MODEL` | `claude-opus-5-5` | `scraper.py --llm` only |
 
@@ -181,8 +180,8 @@ http://127.0.0.1:8000/chat is a bare test page for the chatbot that needs only t
       | SQL                  | HTTPS, key stays server-side
       v                      v
    SQLite                 Gemini API
-   data/keyboards.db      chat.py, gemini_service.py, gemini_vision.py,
-      ^                   gemini_reviews.py (via gemini_client.py)
+   data/keyboards.db      chat.py, gemini_service.py, gemini_reviews.py
+      ^                   (via gemini_client.py)
       |
    Scraper (run by hand)                     backend/scraper.py
       1. fetch     Shopify /products.json feeds; brand sites via brands.py
@@ -231,13 +230,12 @@ backend/
   chat.py             the function-calling chatbot
   gemini_client.py    shared caller for the routes below
   gemini_service.py   text -> filters, ranking, spec insights
-  gemini_vision.py    photo -> filters
   gemini_reviews.py   Google Search grounded review summaries
   test_api.py         API tests with Gemini mocked
 frontend/src/
   pages/              Home, Filters, Results, Detail
   components/         cards, chat drawer, Gemini bars, illustrations
-  lib/                API client, filter definitions, image resizing
+  lib/                API client, filter definitions
   context/            catalog facets and Gemini status
   styles/theme.css    colours, type, shared classes
 ```
@@ -252,7 +250,6 @@ frontend/src/
 | GET | `/api/keyboards/:id` | One keyboard and its cached web review summary |
 | POST | `/api/chat` | `{message, history}` to a markdown reply and keyboard cards; add `"stream": true` for live progress lines (one JSON object per line) |
 | POST | `/api/preferences` | `{prompt, use_case}` to filters |
-| POST | `/api/vision` | `{image, mime_type, use_case}` to filters |
 | POST | `/api/recommendations` | `{keyboard_ids, preferences, use_case}` to a ranking |
 | POST | `/api/keyboards/:id/insights` | Plain-language read of the specs |
 | POST | `/api/keyboards/:id/reviews` | Review summary from Google Search, with sources |

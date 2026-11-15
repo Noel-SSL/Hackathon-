@@ -8,7 +8,6 @@ Gemini routes used by the website:
     POST /api/chat                    shopping assistant      (function calling, chat.py;
                                       "stream": true adds live progress lines)
     POST /api/preferences             a sentence -> filters   (structured output)
-    POST /api/vision                  a photo -> filters      (image input)
     POST /api/recommendations         ranking with reasons    (structured output)
     POST /api/keyboards/<id>/insights the specs, explained    (structured output)
     POST /api/keyboards/<id>/reviews  reviews from the web    (Google Search grounding)
@@ -25,14 +24,12 @@ import db
 import gemini_client
 import gemini_reviews
 import gemini_service
-import gemini_vision
 import scraper
 
 HOST, PORT = "127.0.0.1", 8000
 MAX_BODY_BYTES = 200_000
-MAX_PHOTO_BYTES = 6_000_000  # a base64 photo sent to /api/vision
 KEYBOARD_PATH = re.compile(r"/api/keyboards/([1-9][0-9]*)(/insights|/reviews)?")
-GEMINI_PATHS = ("/api/preferences", "/api/vision", "/api/recommendations")
+GEMINI_PATHS = ("/api/preferences", "/api/recommendations")
 INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
 CHAT_DEMO = Path(__file__).parent / "chat_demo.html"  # temporary chatbot test page
 
@@ -247,7 +244,7 @@ class Handler(BaseHTTPRequestHandler):
     def _gemini(self, path):
         """The website's other Gemini features. Every answer is checked against the
         catalog before it is sent, so a filter or keyboard id Gemini made up is an error."""
-        body = self._read_json(MAX_PHOTO_BYTES if path == "/api/vision" else MAX_BODY_BYTES)
+        body = self._read_json(MAX_BODY_BYTES)
         if body is None:
             return
         try:
@@ -260,8 +257,6 @@ class Handler(BaseHTTPRequestHandler):
     def _gemini_result(self, path, body):
         if path == "/api/preferences":
             return gemini_service.preferences(body, _facets())
-        if path == "/api/vision":
-            return gemini_vision.from_photo(body, _facets())
         if path == "/api/recommendations":
             keyboards = [_keyboard(i) for i in gemini_service.keyboard_ids(body)]
             return gemini_service.recommendations(body, keyboards)

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { BadgeCheck, CircuitBoard, Layers, Ruler, Star, Wallet } from "lucide-react";
+import { BadgeCheck, ChevronDown, CircuitBoard, Layers, Ruler, Star, Wallet } from "lucide-react";
 
 import { choose, clearFilter, describeChoice, hasChoice, isSelected } from "../lib/filters";
 import Icon from "./Icon";
@@ -17,7 +17,8 @@ const FILTER_ICONS = {
 export default function FilterCard({ filter, selection, onChange, note }) {
   const FilterIcon = FILTER_ICONS[filter.id];
   const chosen = hasChoice(filter, selection);
-  const matchesPreset = filter.options.some((option) => isSelected(filter, option, selection));
+  const selectedIndex = filter.options.findIndex((option) => isSelected(filter, option, selection));
+  const matchesPreset = selectedIndex !== -1;
 
   return (
     <article
@@ -49,49 +50,75 @@ export default function FilterCard({ filter, selection, onChange, note }) {
         </AnimatePresence>
       </header>
 
-      <div className={styles.options} role="group" aria-label={filter.title}>
-        {filter.options.map((option) => {
-          const selected = isSelected(filter, option, selection);
-
-          return (
-            <button
-              key={option.label}
-              type="button"
-              className={`${styles.chip} ${selected ? styles.selected : ""}`}
-              aria-pressed={selected}
-              aria-label={
-                filter.id === "rating"
-                  ? `${option.value.min_rating} stars${option.value.min_rating < 5 ? " and up" : ""}`
-                  : undefined
-              }
-              onClick={() => onChange(choose(filter, option, selection))}
-            >
-              {filter.id === "rating" && (
-                <Star
-                  className={styles.ratingIcon}
-                  size={13}
-                  fill="currentColor"
-                  aria-hidden="true"
-                />
-              )}
-              {option.label}
-              {option.hint && <small>{option.hint}</small>}
-            </button>
-          );
-        })}
-
-        {/* A value Gemini picked that is not one of the presets above. */}
-        {chosen && !matchesPreset && (
-          <button
-            type="button"
-            className={`${styles.chip} ${styles.selected}`}
-            aria-pressed="true"
-            onClick={() => onChange(clearFilter(filter, selection))}
+      {filter.dropdown ? (
+        <div className={styles.selectWrap}>
+          <select
+            className={`${styles.select} ${chosen ? styles.selectChosen : ""}`}
+            aria-labelledby={`filter-${filter.id}`}
+            value={chosen ? (matchesPreset ? selectedIndex : "custom") : ""}
+            onChange={(event) => {
+              const option = filter.options[event.target.value];
+              onChange(option ? choose(filter, option, selection) : clearFilter(filter, selection));
+            }}
           >
-            {describeChoice(filter, selection)}
-          </button>
-        )}
-      </div>
+            <option value="">any {filter.title}</option>
+            {/* A value Gemini picked that is not one of the presets below. */}
+            {chosen && !matchesPreset && (
+              <option value="custom">{describeChoice(filter, selection)}</option>
+            )}
+            {filter.options.map((option, index) => (
+              <option key={option.label} value={index}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className={styles.selectIcon} size={16} aria-hidden="true" />
+        </div>
+      ) : (
+        <div className={styles.options} role="group" aria-label={filter.title}>
+          {filter.options.map((option) => {
+            const selected = isSelected(filter, option, selection);
+
+            return (
+              <button
+                key={option.label}
+                type="button"
+                className={`${styles.chip} ${selected ? styles.selected : ""}`}
+                aria-pressed={selected}
+                aria-label={
+                  filter.id === "rating"
+                    ? `${option.value.min_rating} stars${option.value.min_rating < 5 ? " and up" : ""}`
+                    : undefined
+                }
+                onClick={() => onChange(choose(filter, option, selection))}
+              >
+                {filter.id === "rating" && (
+                  <Star
+                    className={styles.ratingIcon}
+                    size={13}
+                    fill="currentColor"
+                    aria-hidden="true"
+                  />
+                )}
+                {option.label}
+                {option.hint && <small>{option.hint}</small>}
+              </button>
+            );
+          })}
+
+          {/* A value Gemini picked that is not one of the presets above. */}
+          {chosen && !matchesPreset && (
+            <button
+              type="button"
+              className={`${styles.chip} ${styles.selected}`}
+              aria-pressed="true"
+              onClick={() => onChange(clearFilter(filter, selection))}
+            >
+              {describeChoice(filter, selection)}
+            </button>
+          )}
+        </div>
+      )}
 
       {note && <p className={styles.note}>{note}</p>}
     </article>
