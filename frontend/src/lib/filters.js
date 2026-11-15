@@ -128,6 +128,10 @@ export function hasChoice(filter, selection) {
 // Gemini can pick a value that is not one of the preset chips, such as an
 // exact switch name or a budget of $150. Describe it so it can still be shown.
 export function describeChoice(filter, selection) {
+  if (filter.id === "rating") {
+    const minimum = Number(selection.min_rating);
+    return `${minimum} stars${minimum < 5 ? " & up" : ""}`;
+  }
   const preset = filter.options.find((option) => isSelected(filter, option, selection));
   if (preset) return preset.label;
 
@@ -137,7 +141,6 @@ export function describeChoice(filter, selection) {
     if (max != null) return `up to $${max}`;
     return `from $${min}`;
   }
-  if (filter.id === "rating") return `${selection.min_rating} + stars`;
   const param = filter.params.find((name) => selection[name] != null);
   return String(selection[param]).toLowerCase();
 }

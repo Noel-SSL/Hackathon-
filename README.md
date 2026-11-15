@@ -64,6 +64,14 @@ python3 backend/scraper.py --ratings --summaries
 needs. `--summaries` has Gemini summarise those reviews. Both can be left off for a
 quicker first run.
 
+To add or refresh customer star ratings for an existing catalog without scraping
+all the listings again, run `python3 backend/ratings.py`. Use `--shop Keychron`
+to check one supported shop. Ratings are read from product pages and refreshed
+after seven days; products without published ratings remain unrated.
+
+On macOS, if Python cannot find its certificate bundle, use the system bundle:
+`SSL_CERT_FILE=/etc/ssl/cert.pem python3 backend/ratings.py`.
+
 ## Project layout
 
 ```

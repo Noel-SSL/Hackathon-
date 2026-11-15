@@ -91,7 +91,7 @@ export default function Detail() {
             <span className={keyboard.available ? styles.inStock : styles.soldOut}>
               {keyboard.available ? "in stock" : "sold out"}
             </span>
-            <Stars rating={keyboard.rating} count={keyboard.review_count} />
+            <Stars rating={keyboard.rating} count={keyboard.review_count} showEmpty />
           </div>
 
           {buyUrl && (

@@ -1,19 +1,33 @@
 .stars {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  max-width: 100%;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .row {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.star {
   position: relative;
   display: inline-block;
-  letter-spacing: 2px;
+  width: 14px;
+  height: 14px;
   line-height: 1;
 }
 
+.star svg {
+  max-width: none;
+}
+
 .empty {
-  color: var(--line-strong);
+  color: var(--ink-faint);
 }
 
 .filled {

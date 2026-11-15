@@ -51,7 +51,7 @@ export default function KeyboardCard({ keyboard, useCase, pick }) {
 
         <div className={styles.meta}>
           <span className={styles.price}>{priceLabel(keyboard)}</span>
-          <Stars rating={keyboard.rating} count={keyboard.review_count} />
+          <Stars rating={keyboard.rating} count={keyboard.review_count} showEmpty />
         </div>
 
         {pick && (
