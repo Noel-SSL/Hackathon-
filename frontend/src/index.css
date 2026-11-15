@@ -1,0 +1,40 @@
+:root {
+  /*
+  font-family: var(--header-font);
+  */
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: black;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  border: none;
+  padding: 0;
+
+  scrollbar-color: var(--color-primary) var(--color-background);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: .5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);        /* dark esports-style track */
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);        /* cyan thumb */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
