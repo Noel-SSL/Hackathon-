@@ -5,3 +5,38 @@ nav {
     box-sizing: border-box;
     border: 1px solid white;
 }
+
+.navbar {
+    background: linear-gradient(
+        to right,
+        var(--color-primary),
+        color-mix(in srgb, var(--color-primary) 15%, transparent)
+    );
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+}
+
+.navbar-left {
+    display: flex;
+    align-items: center;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: "DM Sans", Arial, sans-serif;
+}
+
+button, input, select, textarea {
+    color: var(--color-text);
+}
+
+a {
+    color: inherit;
+}
+
+.navbar_title {
+    text-decoration: none;
+}
