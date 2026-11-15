@@ -24,7 +24,8 @@ API_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 API_REVISION = "2026-05-20"
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 MIN_REVIEWS = 3        # fewer written reviews than this is too little to summarise
-DELAY_SECONDS = 1.0    # between Gemini requests
+DELAY_SECONDS = 4.0    # between Gemini requests (free-tier keys allow ~15 per minute)
+MAX_RETRIES = 4        # on rate limiting (429) or overload (5xx)
 
 SCHEMA = {
     "type": "object",
@@ -73,14 +74,23 @@ def _call_gemini(prompt):
     req = urllib.request.Request(
         API_URL, data=json.dumps(body).encode(), method="POST",
         headers={"x-goog-api-key": key, "Content-Type": "application/json", "Api-Revision": API_REVISION})
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.load(resp)
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")[:300]
-        if e.code in (400, 401, 403, 404):
-            raise GeminiUnavailable(f"Gemini rejected the request ({e.code}): {detail}") from e
-        raise  # 429 / 5xx: caller skips this keyboard
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.load(resp)
+            break
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")[:300]
+            if e.code in (400, 401, 403, 404):
+                raise GeminiUnavailable(f"Gemini rejected the request ({e.code}): {detail}") from e
+            if e.code not in (429, 500, 503) or attempt == MAX_RETRIES:
+                raise  # caller skips this keyboard
+            # Rate limited or overloaded: wait as told, else back off 15s, 30s, 60s, ...
+            try:
+                wait = float(e.headers.get("Retry-After"))
+            except (TypeError, ValueError):
+                wait = 15 * 2 ** attempt
+            time.sleep(min(wait, 120))
     texts = [block.get("text", "") for step in data.get("steps", [])
              for block in step.get("content", []) if isinstance(block, dict)]
     text = next((t for t in reversed(texts) if t.strip()), "")
