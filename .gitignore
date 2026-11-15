@@ -1,5 +1,27 @@
-data/
-__pycache__/
+# Secrets
 .env
-backend/.env
-keyboard.db
+.env.*
+!.env.example
+
+# Scraped data and databases
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Frontend
+node_modules/
+frontend/dist/
+.vite/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
