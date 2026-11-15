@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS reviews (
     body        TEXT NOT NULL,
     PRIMARY KEY (keyboard_id, position)
 );
+-- Review summaries Gemini researched with Google Search, for keyboards whose
+-- shop page has no written reviews to summarise (see gemini_reviews.py).
+CREATE TABLE IF NOT EXISTS web_reviews (
+    keyboard_id   INTEGER PRIMARY KEY REFERENCES keyboards(id) ON DELETE CASCADE,
+    summary       TEXT NOT NULL,
+    praise        TEXT NOT NULL DEFAULT '[]',      -- JSON array of strings
+    complaints    TEXT NOT NULL DEFAULT '[]',      -- JSON array of strings
+    rating        REAL,                            -- only when a cited page states one
+    rating_count  INTEGER,
+    rating_source TEXT,
+    sources       TEXT NOT NULL DEFAULT '[]',      -- JSON array of {title, url}
+    queries       TEXT NOT NULL DEFAULT '[]',      -- Google searches Gemini ran
+    fetched_at    TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_keyboards_size ON keyboards(size);
 CREATE INDEX IF NOT EXISTS idx_keyboards_price ON keyboards(price);
 """
@@ -123,6 +137,39 @@ def _row_to_dict(row):
         d[key] = json.loads(d[key]) if d[key] else []
     del d["summary_reviews_hash"]
     return d
+
+
+def get_by_id(conn, keyboard_id):
+    row = conn.execute("SELECT * FROM keyboards WHERE id = ?", (keyboard_id,)).fetchone()
+    return _row_to_dict(row) if row is not None else None
+
+
+_WEB_REVIEW_LISTS = ("praise", "complaints", "sources", "queries")
+
+
+def get_web_review(conn, keyboard_id):
+    row = conn.execute("SELECT * FROM web_reviews WHERE keyboard_id = ?", (keyboard_id,)).fetchone()
+    if row is None:
+        return None
+    review = dict(row)
+    for key in _WEB_REVIEW_LISTS:
+        review[key] = json.loads(review[key])
+    return review
+
+
+def save_web_review(conn, keyboard_id, review):
+    row = dict(review, keyboard_id=keyboard_id)
+    for key in _WEB_REVIEW_LISTS:
+        row[key] = json.dumps(row[key])
+    conn.execute(
+        "INSERT OR REPLACE INTO web_reviews "
+        "(keyboard_id, summary, praise, complaints, rating, rating_count, rating_source, "
+        " sources, queries, fetched_at) "
+        "VALUES (:keyboard_id, :summary, :praise, :complaints, :rating, :rating_count, "
+        "        :rating_source, :sources, :queries, :fetched_at)",
+        row,
+    )
+    conn.commit()
 
 
 def search(conn, q="", shop="", size="", material="", switch="", min_price=None,
