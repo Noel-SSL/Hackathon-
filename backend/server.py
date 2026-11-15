@@ -8,11 +8,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import chat
 import db
 import scraper
 
 HOST, PORT = "127.0.0.1", 8000
+MAX_BODY_BYTES = 200_000
 INDEX = Path(__file__).parent.parent / "frontend" / "index.html"
+CHAT_DEMO = Path(__file__).parent / "chat_demo.html"  # temporary chatbot test page
 
 _scrape_lock = threading.Lock()
 _scrape_state = {"running": False, "log": []}
@@ -55,6 +58,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if url.path == "/":
             self._send(200, INDEX.read_bytes(), "text/html; charset=utf-8")
+        elif url.path == "/chat":
+            self._send(200, CHAT_DEMO.read_bytes(), "text/html; charset=utf-8")
         elif url.path == "/api/keyboards":
             conn = db.connect()
             try:
@@ -84,16 +89,35 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, {"error": "not found"})
 
-    def do_POST(self):
-        if urlparse(self.path).path != "/api/scrape":
-            return self._send(404, {"error": "not found"})
-        # Requiring JSON stops other websites from triggering a scrape via a plain form post.
-        if self.headers.get("Content-Type", "").split(";")[0] != "application/json":
-            return self._send(415, {"error": "Content-Type must be application/json"})
+    def _read_json(self):
+        """Parse a JSON request body, or send the error response and return None."""
+        # Requiring JSON stops other websites from posting here via a plain form post.
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            self._send(415, {"error": "Content-Type must be application/json"})
+            return None
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            length = int(self.headers.get("Content-Length", 0))
+            if length > MAX_BODY_BYTES:
+                self._send(413, {"error": "request body too large"})
+                return None
+            body = json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, json.JSONDecodeError):
-            return self._send(400, {"error": "invalid JSON"})
+            self._send(400, {"error": "invalid JSON"})
+            return None
+        if not isinstance(body, dict):
+            self._send(400, {"error": "body must be a JSON object"})
+            return None
+        return body
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/api/chat":
+            return self._chat()
+        if path != "/api/scrape":
+            return self._send(404, {"error": "not found"})
+        body = self._read_json()
+        if body is None:
+            return
         known = set(scraper.SHOP_NAMES)
         shops = [s for s in body.get("shops") or [] if s in known] or None
         with _scrape_lock:
@@ -103,6 +127,26 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=_run_scrape, args=(shops, bool(body.get("llm"))), daemon=True).start()
         self._send(202, {"started": True})
 
+    def _chat(self):
+        """POST {"message": str, "history": [{"role": "user"|"assistant", "content": str}]}
+        -> {"reply": markdown, "keyboards": [cards for the keyboards the reply links to]}."""
+        body = self._read_json()
+        if body is None:
+            return
+        message, history = body.get("message"), body.get("history") or []
+        if not isinstance(message, str) or not isinstance(history, list):
+            return self._send(400, {"error": "message must be a string and history a list"})
+        try:
+            self._send(200, chat.reply(message, history))
+        except ValueError as e:
+            self._send(400, {"error": str(e)})
+        except chat.ChatUnavailable as e:
+            self._send(503, {"error": str(e)})
+        except chat.ChatError as e:
+            self._send(502, {"error": str(e)})
+        except Exception as e:  # never drop the connection on a bug; show it in the chat box
+            self._send(500, {"error": f"chatbot failed: {e!r}"})
+
     def log_message(self, fmt, *args):
         pass  # quiet
 
@@ -110,4 +154,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     db.connect().close()  # create the database file on first run
     print(f"Keyboard database viewer: http://{HOST}:{PORT}")
+    print(f"Chatbot test page:        http://{HOST}:{PORT}/chat")
     ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
