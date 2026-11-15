@@ -1,6 +1,9 @@
 // Thin wrapper around fetch for the Python API.
 // Errors always carry a message that is safe to show on the page.
 
+const UNREACHABLE = "The keydex server is not reachable. Is the backend running?";
+const CUT_OFF = "The answer was cut off. Please try again.";
+
 export async function request(path, options = {}) {
   const headers = { ...options.headers };
   if (options.body) {
@@ -12,14 +15,14 @@ export async function request(path, options = {}) {
     response = await fetch(path, { ...options, headers });
   } catch (error) {
     if (error.name === "AbortError") throw error;
-    throw new Error("The keydex server is not reachable. Is the backend running?");
+    throw new Error(UNREACHABLE);
   }
 
   let data;
   try {
     data = await response.json();
   } catch {
-    throw new Error("The keydex server is not reachable. Is the backend running?");
+    throw new Error(UNREACHABLE);
   }
 
   if (!response.ok) {
@@ -36,6 +39,65 @@ export function post(path, body, signal) {
     body: JSON.stringify(body),
     signal,
   });
+}
+
+// POST that reports progress while the server works. With "stream": true the chatbot
+// answers one JSON object per line: {type: "status", text} any number of times, then
+// {type: "reply", ...} or {type: "error", error}. Resolves to the reply.
+export async function postWithStatus(path, body, onStatus) {
+  let response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, stream: true }),
+    });
+  } catch {
+    throw new Error(UNREACHABLE);
+  }
+
+  // Refused before any work started, or a backend that does not stream: plain JSON.
+  const type = response.headers.get("Content-Type") ?? "";
+  if (!response.ok || !response.body || !type.includes("ndjson")) {
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(UNREACHABLE);
+    }
+    if (!response.ok) throw new Error(data.error || "That request could not be completed.");
+    return data;
+  }
+
+  let answer = null;
+  let failure = "";
+  const handle = (line) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line);
+    if (event.type === "status") onStatus?.(event.text);
+    else if (event.type === "error") failure = event.error || "That request could not be completed.";
+    else if (event.type === "reply") answer = event;
+  };
+
+  try {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pending = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      pending += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      const lines = pending.split("\n");
+      pending = done ? "" : lines.pop();
+      lines.forEach(handle);
+      if (done) break;
+    }
+  } catch {
+    throw new Error(CUT_OFF);
+  }
+
+  if (failure) throw new Error(failure);
+  if (!answer) throw new Error(CUT_OFF);
+  return answer;
 }
 
 export function money(value, currency = "USD") {

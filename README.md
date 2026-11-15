@@ -95,7 +95,7 @@ frontend/src/
 | GET | `/api/facets` | Values each filter can take |
 | GET | `/api/keyboards` | Filtered catalog (`size`, `material`, `switch`, `brand`, `shop`, `min_price`, `max_price`, `min_rating`, `sort`, `order`, ...) |
 | GET | `/api/keyboards/:id` | One keyboard and its cached web review summary |
-| POST | `/api/chat` | `{message, history}` to a markdown reply and keyboard cards |
+| POST | `/api/chat` | `{message, history}` to a markdown reply and keyboard cards; add `"stream": true` for live progress lines (one JSON object per line) |
 | POST | `/api/preferences` | `{prompt, use_case}` to filters |
 | POST | `/api/vision` | `{image, mime_type, use_case}` to filters |
 | POST | `/api/recommendations` | `{keyboard_ids, preferences, use_case}` to a ranking |

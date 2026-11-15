@@ -145,11 +145,33 @@ async function ask(message) {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, stream: true }),
     });
-    const data = await res.json();
+    let data;
+    if (res.ok && (res.headers.get("Content-Type") || "").includes("ndjson")) {
+      // One JSON object per line: status lines while it works, then the reply or an error.
+      const reader = res.body.getReader(), decoder = new TextDecoder();
+      let pending = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        pending += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        const lines = pending.split("\n");
+        pending = done ? "" : lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "status") wait.textContent = event.text;
+          else data = event;
+        }
+        if (done) break;
+      }
+      if (!data) throw new Error("The answer was cut off. Please try again.");
+      if (data.type === "error") throw new Error(data.error);
+    } else {
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    }
     wait.remove();
-    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
     add("bot", data.reply);
     history.push({ role: "user", content: message }, { role: "assistant", content: data.reply });
   } catch (err) {

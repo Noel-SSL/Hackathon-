@@ -162,6 +162,7 @@
 
 .typing {
   display: flex;
+  align-items: center;
   gap: 5px;
   padding: 14px 16px;
   align-self: flex-start;
@@ -184,6 +185,12 @@
 
 .typing span:nth-child(3) {
   animation-delay: 0.3s;
+}
+
+.status {
+  margin-left: 6px;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
 }
 
 @keyframes bounce {
