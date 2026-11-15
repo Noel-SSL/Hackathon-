@@ -1,40 +1,57 @@
 :root {
-    --color-primary: #070628;
-    --color-background: #111137;
-    --color-text: #f5f4ff;
+  --color-background: #070628;
+  --color-primary: #0d0c3d;
+  --color-text: #f4f2ff;
+  --muted: #a6a4c2;
+  --lavender: #c7b6ff;
+  --mint: #b6e8d4;
+  --border: rgb(203 194 255 / 13%);
+  --panel: #11103c;
+  color-scheme: dark;
+  font-family: "DM Sans", Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
-
-.navbar {
-    background: linear-gradient(
-        to right,
-        var(--color-primary),
-        color-mix(in srgb, var(--color-primary) 15%, transparent)
-    );
-    display: flex;
-    justify-content: space-between;
-    padding: 1rem;
-}
-
-.navbar-left {
-    display: flex;
-    align-items: center;
-}
-
 body {
   margin: 0;
-  background-color: var(--color-background);
+  background: var(--color-background);
   color: var(--color-text);
-  font-family: "DM Sans", Arial, sans-serif;
 }
-
-button, input, select, textarea {
-    color: var(--color-text);
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
-
 a {
-    color: inherit;
+  color: inherit;
 }
-
-.navbar_title {
-    text-decoration: none;
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+input,
+select,
+textarea {
+  color: var(--color-text);
+  background: var(--color-background);
+}
+:focus-visible {
+  outline: 3px solid var(--mint);
+  outline-offset: 5px;
+}
+::selection {
+  background: #c7b6ff;
+  color: #070628;
 }

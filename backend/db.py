@@ -1,9 +1,16 @@
 """SQLite storage for the keyboard database."""
 import json
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "keyboards.db"
+ROOT = Path(__file__).resolve().parent.parent
+# Keep using an existing legacy catalog; never replace or copy a user's data.
+_canonical = ROOT / "data" / "keyboards.db"
+_legacy = ROOT / "keyboards.db"
+DB_PATH = Path(os.environ.get("KEYBOARD_DB_PATH") or (
+    _canonical if _canonical.exists() else _legacy if _legacy.exists() else _canonical
+))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS keyboards (
@@ -53,7 +60,7 @@ SORTABLE = {"keyboard_name", "shop", "size", "built_material", "price", "scraped
 
 
 def connect():
-    DB_PATH.parent.mkdir(exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
@@ -87,12 +94,19 @@ def _row_to_dict(row):
     d["available"] = bool(d["available"])
     if d["hot_swappable"] is not None:
         d["hot_swappable"] = bool(d["hot_swappable"])
+    d["brand"] = d.get("brand") or d.get("shop")
+    d["brand_source"] = "listing" if row["brand"] else "store"
     return d
+
+
+def get_by_id(conn, keyboard_id):
+    row = conn.execute("SELECT * FROM keyboards WHERE id = ?", (keyboard_id,)).fetchone()
+    return _row_to_dict(row) if row is not None else None
 
 
 def search(conn, q="", shop="", size="", material="", switch="", min_price=None,
            max_price=None, in_stock=False, sort="keyboard_name", order="asc",
-           brand="", connectivity="", assembly="", switch_type="", hot_swap=False):
+           brand="", connectivity="", assembly="", switch_type="", hot_swap=False, currency=""):
     where, args = [], []
     if q:
         where.append("keyboard_name LIKE ?")
@@ -117,11 +131,17 @@ def search(conn, q="", shop="", size="", material="", switch="", min_price=None,
     if max_price is not None:
         where.append("price <= ?")
         args.append(max_price)
+    if currency:
+        where.append("currency = ?")
+        args.append(currency)
+    if brand:
+        where.append("COALESCE(NULLIF(brand, ''), shop) = ?")
+        args.append(brand)
     if in_stock:
         where.append("available = 1")
     if hot_swap:
         where.append("hot_swappable = 1")
-    for column, value, exact in [("brand", brand, True), ("switch_type", switch_type, True),
+    for column, value, exact in [("switch_type", switch_type, True),
                                  ("connectivity", connectivity, False), ("assembly", assembly, False)]:
         if value == "unknown":
             where.append(f"{column} IS NULL")
@@ -148,7 +168,15 @@ def facets(conn):
 
     materials = parts("built_material")
     return {
-        "brands": col("brand"),
+        "brands": [r[0] for r in conn.execute(
+            "SELECT DISTINCT COALESCE(NULLIF(brand, ''), shop) AS name "
+            "FROM keyboards ORDER BY name COLLATE NOCASE")],
+        "brand_label": "Brand / store",
+        "switches": sorted({s for row in conn.execute("SELECT switches FROM keyboards")
+                            for s in json.loads(row[0]) if isinstance(s, str)}),
+        "currencies": col("currency"),
+        "ratings_available": False,
+        "reviews_available": False,
         "connectivity": parts("connectivity"),
         "assembly": parts("assembly"),
         "switch_types": col("switch_type"),

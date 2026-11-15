@@ -1,0 +1,276 @@
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 60px;
+  margin: 30px 0 60px;
+  align-items: center;
+}
+.gallery {
+  min-width: 0;
+  border-radius: 15px;
+  background: #efedf3;
+  min-height: 450px;
+  padding: 28px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.galleryLabel {
+  position: absolute;
+  top: 24px;
+  left: 25px;
+  color: #666071;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+}
+.galleryCaption {
+  position: absolute;
+  bottom: 22px;
+  color: #777080;
+  font-size: 9px;
+}
+.productImage {
+  width: 100%;
+  height: 340px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+.productImage svg {
+  width: 100%;
+  height: 290px;
+}
+.overview h1 {
+  font-size: clamp(26px, 3vw, 39px);
+  line-height: 1.25;
+  letter-spacing: -1px;
+  margin: 0 0 20px;
+}
+.overview .eyebrow {
+  line-height: 1.7;
+  font-size: 9px;
+}
+.tags {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.price {
+  font-size: 31px;
+  font-weight: 500;
+  letter-spacing: -0.8px;
+  margin-bottom: 8px;
+}
+.price span {
+  font-size: 22px;
+}
+.available {
+  color: var(--mint);
+  font-size: 11px;
+}
+.available::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 50%;
+  margin-right: 7px;
+}
+.unavailable {
+  font-size: 11px;
+  color: var(--muted);
+}
+.description {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 23px 0;
+}
+.overview > .button {
+  width: 100%;
+}
+.priceNote {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 13px 0 0;
+}
+.content {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 60px;
+  padding-top: 36px;
+  border-top: 1px solid var(--border);
+}
+.content h2 {
+  font-size: 26px;
+  letter-spacing: -0.7px;
+  margin-bottom: 23px;
+}
+.specs dl {
+  margin: 0 0 30px;
+}
+.specs dl > div {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.specs dt {
+  color: var(--muted);
+}
+.specs dd {
+  margin: 0;
+  text-align: right;
+}
+.specs h3 {
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.switches .pill {
+  line-height: 1.7;
+}
+.muted {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.insights {
+  padding: 25px;
+  border: 1px solid #3b315b;
+  border-radius: 12px;
+  background: linear-gradient(115deg, #19133e, #0e0d31);
+}
+.insights h2 {
+  font-size: 21px;
+  margin: 17px 0 12px;
+}
+.insights p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.9;
+  margin-bottom: 20px;
+}
+.insights .button {
+  font-size: 11px;
+}
+.insights .aiHint {
+  font-size: 10px;
+  margin: 13px 0 0;
+}
+.insightResult > p {
+  color: #dbd1ef;
+}
+.insightResult h3 {
+  font-size: 12px;
+  color: var(--lavender);
+  margin: 18px 0 8px;
+}
+.insightResult ul {
+  padding-left: 17px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.insightResult li {
+  padding-bottom: 7px;
+}
+.insightResult small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin-top: 17px;
+}
+.reviews {
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.reviewIcon {
+  color: var(--mint);
+  font-size: 21px;
+}
+.reviews h2 {
+  font-size: 20px;
+  margin: 14px 0 12px;
+}
+.reviews p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.reviews .text-link {
+  font-size: 11px;
+}
+.source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 45px;
+  padding-top: 23px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 1000px) {
+  .hero,
+  .content {
+    gap: 32px;
+  }
+  .gallery {
+    min-height: 390px;
+    padding: 20px;
+  }
+  .productImage {
+    height: 290px;
+  }
+}
+@media (max-width: 750px) {
+  .hero,
+  .content {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .hero {
+    margin-bottom: 35px;
+  }
+  .gallery {
+    min-height: 340px;
+  }
+  .productImage {
+    height: 260px;
+  }
+  .overview h1 {
+    font-size: 30px;
+  }
+  .content {
+    padding-top: 30px;
+  }
+  .source {
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.8;
+  }
+  .insights,
+  .reviews {
+    padding: 22px;
+  }
+}
