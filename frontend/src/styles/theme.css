@@ -2,39 +2,12 @@
     --color-primary: #070628;
     --color-background: #111137;
     --color-text: #f5f4ff;
+    --font-primary: "DM Sans", sans-serif;
 }
 
-.navbar {
-    background: linear-gradient(
-        to right,
-        var(--color-primary),
-        color-mix(in srgb, var(--color-primary) 15%, transparent)
-    );
-    display: flex;
-    justify-content: space-between;
-    padding: 1rem;
-}
-
-.navbar-left {
-    display: flex;
-    align-items: center;
-}
-
-body {
-  margin: 0;
-  background-color: var(--color-background);
-  color: var(--color-text);
-  font-family: "DM Sans", Arial, sans-serif;
-}
-
-button, input, select, textarea {
-    color: var(--color-text);
-}
-
-a {
-    color: inherit;
-}
-
-.navbar_title {
-    text-decoration: none;
+.dm-sans-500 {
+  font-family: "DM Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
 }
