@@ -282,6 +282,7 @@ class GeminiTransportTest(unittest.TestCase):
         from urllib.error import HTTPError
         failure = HTTPError("https://example.com?secret=test-secret", 403, "secret=test-secret", None, None)
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret"}), \
+                patch.dict(client._resting, clear=True), \
                 patch.object(client.urllib.request, "urlopen", side_effect=failure) as opened:
             with self.assertRaises(client.ServiceError) as caught:
                 client.generate_json("instruction", [{"text": "{}"}], {"type": "OBJECT"})
@@ -289,6 +290,21 @@ class GeminiTransportTest(unittest.TestCase):
         request = opened.call_args.args[0]
         self.assertNotIn("test-secret", request.full_url)
         self.assertEqual(request.get_header("X-goog-api-key"), "test-secret")
+
+    def test_a_rate_limited_model_falls_back_to_the_next_one(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+        answer = {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": '{"ok": true}'}]}}]}
+        replies = [HTTPError("https://example.com", 429, "quota", None, None),
+                   BytesIO(json.dumps(answer).encode())]
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-secret", "GEMINI_MODEL": "model-a"}), \
+                patch.dict(client._resting, clear=True), \
+                patch.object(client.urllib.request, "urlopen", side_effect=replies) as opened:
+            result = client.generate_json("instruction", [{"text": "{}"}], {"type": "OBJECT"})
+            self.assertEqual(result, {"ok": True})
+            tried = [call.args[0].full_url.rsplit("/", 1)[1] for call in opened.call_args_list]
+            self.assertEqual(tried, ["model-a:generateContent", "gemini-flash-lite-latest:generateContent"])
+            self.assertIn(("model-a", False), client._resting)  # skipped for the next few minutes
 
     def test_blocked_or_malformed_answers_fail_cleanly(self):
         from io import BytesIO

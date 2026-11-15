@@ -1,18 +1,38 @@
 import { AnimatePresence, motion } from "motion/react";
+import { BadgeCheck, CircuitBoard, Layers, Ruler, Star, Wallet } from "lucide-react";
 
 import { choose, clearFilter, describeChoice, hasChoice, isSelected } from "../lib/filters";
 import Icon from "./Icon";
-import PartArt from "./PartArt";
 import styles from "./FilterCard.module.css";
 
+const FILTER_ICONS = {
+  size: Ruler,
+  material: Layers,
+  switch: CircuitBoard,
+  brand: BadgeCheck,
+  price: Wallet,
+  rating: Star,
+};
+
 export default function FilterCard({ filter, selection, onChange, note }) {
+  const FilterIcon = FILTER_ICONS[filter.id];
   const chosen = hasChoice(filter, selection);
   const matchesPreset = filter.options.some((option) => isSelected(filter, option, selection));
 
   return (
-    <article className={`${styles.card} ${chosen ? styles.chosen : ""}`}>
-      <div className={styles.art}>
-        <PartArt part={filter.id} />
+    <article
+      className={`${styles.card} ${chosen ? styles.chosen : ""}`}
+      aria-labelledby={`filter-${filter.id}`}
+    >
+      <header className={styles.header}>
+        <div className={styles.art}>
+          <FilterIcon size={24} strokeWidth={1.7} aria-hidden="true" />
+        </div>
+
+        <div className={styles.heading}>
+          <h2 id={`filter-${filter.id}`}>{filter.title}</h2>
+          <p>{chosen ? describeChoice(filter, selection) : filter.blurb}</p>
+        </div>
 
         <AnimatePresence>
           {chosen && (
@@ -27,11 +47,6 @@ export default function FilterCard({ filter, selection, onChange, note }) {
             </motion.span>
           )}
         </AnimatePresence>
-      </div>
-
-      <header className={styles.header}>
-        <h2>{filter.title}</h2>
-        <p>{chosen ? describeChoice(filter, selection) : filter.blurb}</p>
       </header>
 
       <div className={styles.options} role="group" aria-label={filter.title}>
